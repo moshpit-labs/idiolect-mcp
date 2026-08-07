@@ -1,0 +1,38 @@
+{
+  "name": "idiolect-mcp",
+  "version": "0.4.0",
+  "mcpName": "app.idiolect/idiolect-ai",
+  "type": "module",
+  "bin": {
+    "idiolect-mcp": "server.mjs"
+  },
+  "description": "MCP server that gives any MCP-compatible AI (Claude, etc.) your Idiolect AI voice — make AI write as you. https://idiolect.app",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "ai",
+    "writing",
+    "voice",
+    "idiolect"
+  ],
+  "homepage": "https://idiolect.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/111mihir/idiolect-mcp.git"
+  },
+  "license": "MIT",
+  "files": [
+    "server.mjs",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4"
+  }
+}
