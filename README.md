@@ -3,27 +3,11 @@
 MCP server that makes any MCP-compatible AI (Claude Desktop, Claude Code, …)
 write in **your** voice, using your [Idiolect AI](https://idiolect.app) Voice Card.
 
-Published in the official MCP Registry as `app.idiolect/idiolect-ai`.
-
-## Remote connector (recommended)
-
-Most clients want the hosted endpoint rather than this package — Streamable HTTP
-with OAuth 2.1, nothing to install and no key to paste:
-
-```
-https://idiolect.app/api/mcp
-```
-
-Setup per client: **https://idiolect.app/developers/mcp**
-
-The stdio server below is for clients without remote MCP support, and for anyone
-who would rather run the process themselves.
-
 ## Setup
 
 ### Account mode
 
-For account-resolved Voice Profile creation, loading, scoring, rewrite, and draft tools,
+For account-resolved Writing Profile creation, loading, scoring, rewrite, and draft tools,
 set `IDIOLECT_API_KEY`:
 
 ```json
@@ -56,39 +40,66 @@ set `IDIOLECT_API_KEY`:
 }
 ```
 
-## Tool
+## Tools
 
-- **`get_my_voice`** — returns your Voice Card. The model calls it before writing
-  on your behalf, then writes as you. Pass `slug` per-call or set `IDIOLECT_SLUG`.
-- **`create_my_voice`** — account mode only. Creates your private Voice Profile
-  from writing you supply or explicitly approve. Safe retries use an idempotency key.
-- **`score_voice`** — scores text against your voice. In account mode this uses
-  your API key; in slug mode it uses your local writing samples.
-- **`rewrite_in_voice`** — account mode only. Rewrites drafted prose in your
-  actual voice.
-- **`draft_in_voice`** — account mode only. Drafts from a brief in your voice.
+Remote OAuth and account-mode stdio advertise the same user-facing tools.
+Setup state, evidence approval, retries, and idempotency stay inside the server;
+clients receive one `next` action and never coordinate workflow versions or locks.
 
-`create_my_voice` sends the approved writing to your Idiolect AI account and stores it
-as private Voice Profile evidence; it is never returned by the tool. In slug mode,
-locally configured samples are used only for stateless scoring and are not stored.
+- **`write`** — writes new prose in the user's Writing Profile or own style.
+- **`rewrite`** — rewrites supplied prose in the user's Writing Profile.
+- **`refine_writing`** — changes returned writing, applies a template, or records its outcome.
+- **`view_writing_profile`** — lists Writing Profiles and shows the selected or current profile.
+- **`list_writing_samples`** — lists the writing behind one profile.
+- **`create_writing_profile`** — creates a new profile without changing another.
+- **`add_writing_samples`** — adds approved writing to a selected or current profile.
+- **`rename_writing_profile`** — renames a profile.
+- **`set_current_writing_profile`** — makes a profile current.
+- **`set_default_writing_template`** — sets or clears the default template when no profile exists.
+- **`add_writing_rule`** — stores a lasting rule in the user's words.
+- **`remove_writing_rule`** — stops following one stored rule.
+- **`remove_writing_sample`** — revokes one ready or waiting sample.
+- **`delete_writing_profile`** — deletes a selected profile.
 
-When an account has no Voice Profile yet, `get_my_voice` keeps setup inside the
-conversation: paste 3–5 examples you wrote, or ask for the short guided interview.
-The response never includes an activation token, and `create_my_voice` runs only after
-you explicitly ask to create the profile from the evidence you supplied or approved.
+Cached account-mode tool names remain callable but are not advertised. Slug mode keeps its
+legacy local-samples catalogue; locally configured samples are used only for stateless scoring
+and are not stored.
+
+When an account has no Writing Profile, `write` and `rewrite` return the setup choices.
+`create_writing_profile` returns exact missing blocks and characters when evidence is thin.
+Feedback can be accepted, corrected-and-accepted, or rejected only against a
+succeeded server-issued output.
+Correction prose is retained only when the applicable consent gates permit it and
+within its existing expiry rule. An explicitly approved correction can be added as
+private V2 evidence; it never changes the current Writing Profile or silently activates
+V2. A stored Writing Profile is never described as provisional.
+
+The setup response includes neither an activation token nor a capability/setup URL.
+`create_writing_profile` runs only after explicit permission from evidence you supplied or
+approved. Creating a profile and
+succeeding at a first generation are not activation. Canonical native activation
+occurs only after accepted or corrected-and-accepted feedback.
+
+## Credits and retries
+
+Generation is free during beta, and completed drafts and rewrites no longer carry a credit
+state. The account's balance and access are shown at idiolect.app/settings. Future credits-mode
+states cover available, low, zero, unlimited, and temporarily unavailable balances without
+changing the tool names.
+
+A known zero balance returns a structured `purchase_required` tool error with the
+stable first-party credit-management path. An accounting outage returns
+`accounting_unavailable` without a purchase suggestion. Both denials happen before
+generation or charging, so their retry object is explicitly scoped to
+`pre_generation`. Successful generation does not yet promise replay after a lost
+response, and paid enforcement remains disabled.
+
+Internal generation coordination happens before provider work. A stale internal
+state is refreshed before the client receives one public retry action. If durable
+completion cannot be confirmed, prose is suppressed and the response uses plain
+language without exposing coordination receipts.
 
 Set `IDIOLECT_BASE` to point at a self-hosted instance (defaults to
 `https://idiolect.app`).
-
-## Docker
-
-A reference image is included, mostly so directory crawlers can start the server
-and introspect it. `tools/list` answers with no credentials; the tools themselves
-need a key or slug. Use `-i` — the transport is stdio, not a port.
-
-```bash
-docker build -t idiolect-mcp .
-docker run -i --rm -e IDIOLECT_API_KEY=idiolect_... idiolect-mcp
-```
 
 MIT licensed.

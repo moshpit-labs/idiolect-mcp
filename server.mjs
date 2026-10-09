@@ -32,6 +32,46 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import {
+  publicMcpState,
+} from "../lib/mcp/public-contract.js";
+
+const progressiveCatalog = JSON.parse(
+  readFileSync(new URL("./progressive-catalog.json", import.meta.url), "utf8"),
+);
+const PROGRESSIVE_ACCOUNT_TOOL_NAMES = new Set(
+  progressiveCatalog.tools.map((tool) => tool.name),
+);
+/** Cached tool names stay callable through the remote compatibility adapter. */
+export const accountRuntimeCompatibilityToolNames = Object.freeze([
+  "feedback",
+  "refine",
+  "profile",
+  "manage_profile",
+  "learn_writing_style",
+  "get_my_voice",
+  "create_my_voice",
+  "draft_in_voice",
+  "rewrite_in_voice",
+  "score_voice",
+  "set_up_my_voice",
+  "record_voice_feedback",
+  "write_as_me",
+  "rewrite_as_me",
+  "list_writing_profiles",
+  "list_writing_profile_samples",
+  "add_samples_to_writing_profile",
+  "replace_samples_in_writing_profile",
+  "remove_sample_from_writing_profile",
+  "apply_writing_template",
+  "clear_default_writing_template",
+  "add_writing_preference",
+  "remove_writing_preference",
+  "remove_learned_writing_preference",
+  "list_style_contributions",
+  "remove_style_contribution",
+]);
+const REMOTE_COMPATIBILITY_TOOL_NAMES = new Set(accountRuntimeCompatibilityToolNames);
 
 const BASE = process.env.IDIOLECT_BASE || "https://idiolect.app";
 const ACCOUNT_BASE = BASE.replace(/\/+$/, "");
@@ -76,34 +116,246 @@ async function scoreVoice(candidates, region) {
   return res.json();
 }
 
-async function readErrorBody(res) {
+export function formatLegacyScoreVoiceResult(result) {
+  const scores = Array.isArray(result?.scores) ? result.scores : [];
+  const lines = scores
+    .map((score, index) => {
+      const text = typeof score?.text === "string" ? score.text : "";
+      const excerpt = `${text.slice(0, 60)}${text.length > 60 ? "…" : ""}`;
+      const measured = score?.scored !== false && Number.isFinite(score?.voiceMatch);
+      const reportable = measured && score?.absoluteScoreReportable !== false;
+      const withheld = score?.scored === true && score?.absoluteScoreReportable === false;
+      const match = reportable
+        ? `Voice Match ${score.voiceMatch}/100`
+        : withheld
+          ? `Voice Match not calibrated${score?.reason ? ` — ${score.reason}` : ""}`
+          : `Voice Match unavailable${score?.reason ? ` — ${score.reason}` : ""}`;
+      return `#${index + 1} · ${match} — ${excerpt}`;
+    })
+    .join("\n");
+  const provenance = result?.metric?.validated === true
+    ? "Relative Voice Match on the validated instrument"
+    : result?.metric?.validated === false
+      ? "Relative Voice Match from a quick estimate"
+      : "Relative Voice Match; metric provenance unavailable";
+
+  return `${lines}\n\n(${provenance} — higher = reads more like you; not a forensic identity claim.)`;
+}
+
+const CREDIT_STATES = new Set([
+  "free_beta",
+  "balance_available",
+  "low_balance",
+  "zero_balance",
+  "legacy_unlimited",
+  "accounting_unavailable",
+]);
+const CREDIT_MODES = new Set(["free", "credits"]);
+
+function plainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function safeManageUrl(value) {
+  if (value === null) return null;
+  if (typeof value !== "string") return undefined;
   try {
-    const contentType = res.headers.get("content-type") || "";
-    const body = contentType.includes("application/json")
-      ? JSON.stringify(await res.json())
-      : await res.text();
-    return body.trim().slice(0, 500);
+    const parsed = new URL(value);
+    const accountOrigin = new URL(ACCOUNT_BASE).origin;
+    const firstParty = parsed.hostname === "idiolect.app" || parsed.hostname.endsWith(".idiolect.app");
+    if (
+      !["https:", "http:"].includes(parsed.protocol)
+      || (parsed.origin !== accountOrigin && !firstParty)
+      || parsed.pathname !== "/settings"
+      || parsed.username
+      || parsed.password
+      || parsed.search !== "?section=credits"
+      || parsed.hash
+    ) return undefined;
+    return `${parsed.origin}/settings?section=credits`;
   } catch {
-    return "";
+    return undefined;
   }
 }
 
-async function accountErrorMessage(res, toolName) {
-  if (res.status === 401) {
-    return "Idiolect AI API key is invalid or expired (401). Check IDIOLECT_API_KEY.";
+function creditMessage(credits) {
+  const { state, balance, charged, manageUrl, mode } = credits;
+  if (state === "free_beta") {
+    return charged === 0
+      ? "Free during beta. No credits are being used."
+      : "Completed free during beta. No credit was used.";
   }
-  if (res.status === 402) {
-    return `${toolName}: generation access is unavailable for this Idiolect AI account (402).`;
+  if (state === "legacy_unlimited") return "Unlimited generation access is active. Credits are not used.";
+  if (state === "accounting_unavailable") {
+    return mode === "free"
+      ? "Free during beta. The credit balance is temporarily unavailable; generation remains available."
+      : "The credit balance is temporarily unavailable. Generation is paused; no credit was used.";
   }
-  const body = await readErrorBody(res);
-  return `${toolName}: Idiolect AI account API failed (${res.status} ${res.statusText})${body ? `: ${body}` : ""}`;
+  if (state === "zero_balance") {
+    return charged === 1
+      ? "This request completed with the last credit."
+      : `The credit balance is 0. A draft or rewrite needs 1 credit. Credit management: ${manageUrl}.`;
+  }
+  if (charged === 1) return `1 credit used. ${balance} ${balance === 1 ? "remains" : "remain"}.`;
+  if (state === "low_balance") return `${balance} credit${balance === 1 ? "" : "s"} remain. Credit management: ${manageUrl}.`;
+  return `${balance} credits available. Each draft or rewrite uses 1 credit.`;
+}
+
+function validCreditInvariant(credits) {
+  const {
+    state,
+    mode,
+    balance,
+    balancePreview,
+    unitCost,
+    charged,
+    unlimited,
+    accountingAvailable,
+    generationAvailable,
+    purchaseRequired,
+    manageUrl,
+  } = credits;
+  if (state === "free_beta") {
+    return mode === "free" && balance !== null && balancePreview && unitCost === 0 && charged === 0
+      && !unlimited && accountingAvailable && generationAvailable && !purchaseRequired && manageUrl === null;
+  }
+  if (state === "legacy_unlimited") {
+    return mode === "credits" && balance === null && !balancePreview && unitCost === 0 && charged === 0
+      && unlimited && accountingAvailable && generationAvailable && !purchaseRequired && manageUrl === null;
+  }
+  if (state === "accounting_unavailable") {
+    return balance === null && !balancePreview && charged === 0 && !unlimited && !accountingAvailable
+      && !purchaseRequired && manageUrl === null && unitCost === (mode === "free" ? 0 : 1)
+      && generationAvailable === (mode === "free");
+  }
+  if (mode !== "credits" || balance === null || balancePreview || unitCost !== 1 || unlimited || !accountingAvailable) {
+    return false;
+  }
+  if (state === "balance_available") {
+    return balance > 5 && generationAvailable && !purchaseRequired && manageUrl === null;
+  }
+  if (state === "low_balance") {
+    return balance >= 1 && balance <= 5 && generationAvailable && !purchaseRequired && manageUrl !== null;
+  }
+  return state === "zero_balance" && balance === 0 && !generationAvailable && purchaseRequired && manageUrl !== null;
+}
+
+/**
+ * Rebuild the public credit envelope from known primitives only. Never copy an
+ * upstream message or unknown field into an MCP response.
+ */
+export function safeCreditPresentation(value) {
+  if (!plainObject(value)) return null;
+  const balance = value.balance;
+  const manageUrl = safeManageUrl(value.manageUrl);
+  if (
+    !CREDIT_STATES.has(value.state)
+    || !CREDIT_MODES.has(value.mode)
+    || !(balance === null || (Number.isSafeInteger(balance) && balance >= 0))
+    || typeof value.balancePreview !== "boolean"
+    || ![0, 1].includes(value.unitCost)
+    || ![0, 1].includes(value.charged)
+    || typeof value.unlimited !== "boolean"
+    || typeof value.accountingAvailable !== "boolean"
+    || typeof value.generationAvailable !== "boolean"
+    || typeof value.purchaseRequired !== "boolean"
+    || manageUrl === undefined
+    || typeof value.replayed !== "boolean"
+  ) return null;
+
+  const credits = {
+    state: value.state,
+    mode: value.mode,
+    balance,
+    balancePreview: value.balancePreview,
+    unitCost: value.unitCost,
+    charged: value.charged,
+    unlimited: value.unlimited,
+    accountingAvailable: value.accountingAvailable,
+    generationAvailable: value.generationAvailable,
+    purchaseRequired: value.purchaseRequired,
+    manageUrl,
+    replayed: value.replayed,
+  };
+  if (!validCreditInvariant(credits)) return null;
+  return { ...credits, message: creditMessage(credits) };
+}
+
+function safeCreditToolErrorPayload(value) {
+  if (!plainObject(value) || !plainObject(value.error) || !plainObject(value.retry)) return null;
+  const credits = safeCreditPresentation(value.credits);
+  if (!credits) return null;
+  const purchaseRequired = value.status === "purchase_required"
+    && value.error.code === "insufficient_credits"
+    && credits.state === "zero_balance"
+    && credits.mode === "credits"
+    && credits.balance === 0
+    && credits.charged === 0
+    && value.retry.after === "balance_updated";
+  const accountingUnavailable = value.status === "accounting_unavailable"
+    && value.error.code === "credit_accounting_unavailable"
+    && credits.state === "accounting_unavailable"
+    && credits.mode === "credits"
+    && credits.charged === 0
+    && value.retry.after === "accounting_available";
+  if (
+    (!purchaseRequired && !accountingUnavailable)
+    || value.error.retryable !== true
+    || value.retry.safe !== true
+    || value.retry.idempotent !== true
+    || value.retry.scope !== "pre_generation"
+  ) return null;
+
+  const message = purchaseRequired
+    ? `This request needs 1 credit; the balance is 0. Nothing was charged. Credit management: ${credits.manageUrl}. The same request remains safe to retry after the balance changes.`
+    : "The credit balance is temporarily unavailable. No generation started and no credit was used. The same request remains safe to retry after accounting recovers.";
+  return {
+    status: value.status,
+    message,
+    error: { code: value.error.code, retryable: true },
+    credits: { ...credits, message },
+    retry: {
+      safe: true,
+      idempotent: true,
+      scope: "pre_generation",
+      after: value.retry.after,
+    },
+  };
+}
+
+async function accountRequestError(res, toolName) {
+  if ((res.headers.get("content-type") || "").includes("application/json")) {
+    try {
+      const payload = await res.json();
+      const creditContent = safeCreditToolErrorPayload(payload);
+      if (creditContent) {
+        return new AccountRequestError(creditContent.message, res.status, creditContent);
+      }
+      const creationContent = toolName === "create_my_voice" ? safeCreationFailurePayload(payload) : null;
+      if (creationContent) {
+        return new AccountRequestError(creationContent.message, res.status, creationContent);
+      }
+    } catch {
+      // The bounded status fallback below deliberately ignores malformed bodies.
+    }
+  }
+
+  const message = res.status === 401
+    ? "Idiolect AI API key is invalid or expired (401). Check IDIOLECT_API_KEY."
+    : res.status === 402
+      ? `${toolName}: generation access is unavailable for this Idiolect AI account (402).`
+      : res.status === 429
+        ? `${toolName}: Idiolect AI is temporarily busy (429). Try again shortly.`
+        : `${toolName}: Idiolect AI account API failed (${res.status}).`;
+  return new AccountRequestError(message, res.status);
 }
 
 class AccountRequestError extends Error {
-  constructor(message, status) {
+  constructor(message, status, structuredContent = null) {
     super(message);
     this.name = "AccountRequestError";
     this.status = status;
+    this.structuredContent = structuredContent;
   }
 }
 
@@ -116,8 +368,24 @@ async function accountRequest(path, { method = "GET", body, toolName }) {
     },
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (!res.ok) throw new AccountRequestError(await accountErrorMessage(res, toolName), res.status);
+  if (!res.ok) throw await accountRequestError(res, toolName);
   return res.json();
+}
+
+async function accountMcpRequest(name, args) {
+  const res = await fetch(`${ACCOUNT_BASE}/api/mcp`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${API_KEY}`,
+      accept: "application/json, text/event-stream",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }),
+  });
+  if (!res.ok) throw await accountRequestError(res, name);
+  const body = await res.json();
+  if (body.error || !body.result) throw new Error(`${name}: Idiolect AI returned an invalid MCP response.`);
+  return body.result;
 }
 
 function formatValue(value) {
@@ -127,17 +395,18 @@ function formatValue(value) {
   return JSON.stringify(value, null, 2);
 }
 
-function formatAlternatives(alternatives) {
-  if (!Array.isArray(alternatives) || alternatives.length === 0) return "";
-  return `\n\nAlternatives:\n${alternatives
-    .map((alternative, i) => `${i + 1}. ${formatValue(alternative)}`)
-    .join("\n")}`;
-}
-
-function scoreSummary(r) {
+export function scoreSummary(r) {
   const lines = [];
   if (r.voiceMatch !== undefined) {
-    lines.push(r.voiceMatch === null ? "Voice Match: unavailable" : `Voice Match: ${formatValue(r.voiceMatch)}`);
+    const withheld = r.measured === true
+      && r.absoluteScoreReportable === false;
+    lines.push(
+      r.voiceMatch !== null && !withheld
+        ? `Voice Match: ${formatValue(r.voiceMatch)}`
+        : withheld
+          ? `Voice Match: not calibrated — ${r.reason || "insufficient evidence"}.`
+          : "Voice Match: unavailable",
+    );
   }
   if (r.delta !== undefined) lines.push(r.delta === null ? "Delta: unavailable" : `Delta: ${formatValue(r.delta)}`);
   if (r.candidateDelta !== undefined && r.candidateDelta !== r.delta) {
@@ -145,6 +414,10 @@ function scoreSummary(r) {
   }
   if (r.validated !== undefined) lines.push(`Validated: ${formatValue(r.validated)}`);
   if (r.measured !== undefined) lines.push(`Measured: ${formatValue(r.measured)}`);
+  if (r.scoreConfidence) lines.push(`Score confidence: ${formatValue(r.scoreConfidence)}`);
+  if (r.absoluteScoreReportable !== undefined) {
+    lines.push(`Absolute score reportable: ${formatValue(r.absoluteScoreReportable)}`);
+  }
   if (r.reason) lines.push(`Reason: ${formatValue(r.reason)}`);
   if (r.instrument) lines.push(`Instrument: ${formatValue(r.instrument)}`);
   if (r.register) lines.push(`Calibration register: ${formatValue(r.register)}`);
@@ -154,14 +427,110 @@ function scoreSummary(r) {
 
 // Mirrors REWRITE_REGISTERS in lib/connectors.ts. This file ships as a standalone npm
 // package with no build step, so it cannot import from the app — keep the two in sync.
-const REWRITE_REGISTERS = ["email", "slack", "essay"];
+const REWRITE_REGISTERS = ["email", "slack", "social", "essay"];
 const REGISTER_SET = new Set(REWRITE_REGISTERS);
+const CHANGE_SCOPES = ["light_edit", "rewrite", "transform"];
+const CHANGE_SCOPE_SET = new Set([...CHANGE_SCOPES, "polish"]);
+const EFFECT_KINDS = ["register", "tone", "humour", "candour", "energy", "voice", "other"];
+const EFFECT_KIND_SET = new Set(EFFECT_KINDS);
+const EFFECT_STRENGTHS = ["light", "full"];
+const EFFECT_STRENGTH_SET = new Set(EFFECT_STRENGTHS);
+const EFFECT_PROPERTY_SET = new Set(["kind", "ask", "strength"]);
+// Who wrote the source or brief; mirrors lib/generation/change-request.ts's SOURCE_AUTHORS.
+const SOURCE_AUTHORS = ["user", "host", "other", "unknown"];
+const SOURCE_AUTHOR_SET = new Set(SOURCE_AUTHORS);
+
+function backtickedValues(values) {
+  return values.map((value) => `\`${value}\``).join(", ");
+}
+
+const CHANGE_SCOPE_SCHEMA = {
+  type: "string",
+  enum: CHANGE_SCOPES,
+  description: "`changeScope` carries how much the person wants changed, from their own words.",
+};
+const EFFECTS_SCHEMA = {
+  type: "array",
+  maxItems: 20,
+  items: {
+    type: "object",
+    properties: {
+      kind: {
+        type: "string",
+        enum: EFFECT_KINDS,
+        description: "`kind` names the tone, register or effect the requester identified.",
+      },
+      ask: {
+        type: "string",
+        minLength: 1,
+        maxLength: 2000,
+        description: "`ask` preserves the requester's own words for this effect.",
+      },
+      strength: {
+        type: "string",
+        enum: EFFECT_STRENGTHS,
+        description: "`strength` records whether the requester asked for the effect to be `light` or `full`.",
+      },
+    },
+    required: ["kind", "ask"],
+    additionalProperties: false,
+  },
+  description: "`effects` carries each named tone, register or effect.",
+};
+const SOURCE_AUTHOR_SCHEMA = {
+  type: "string",
+  enum: SOURCE_AUTHORS,
+  description:
+    "Who wrote this text. `user` only when the person wrote it themselves; `host` when you (the assistant) drafted it; `other` for a third party's text. Leave it out if unsure.",
+};
+const BRIEF_AUTHOR_SCHEMA = {
+  type: "string",
+  enum: SOURCE_AUTHORS,
+  description:
+    "Who wrote the brief. `user` only when the person wrote it themselves; `host` when you (the assistant) drafted it; `other` for a third party's text. Leave it out if unsure.",
+};
+
+/** Validates `sourceAuthor`/`briefAuthor` and defaults an absent one to `"unknown"` on the
+ * returned copy of `args`. Returns a tool error, never throws. */
+export function authorProvenanceError(args, toolName, key) {
+  if (args[key] === undefined) return null;
+  if (typeof args[key] !== "string" || !SOURCE_AUTHOR_SET.has(args[key])) {
+    return toolError(`${toolName}: \`${key}\` must be one of ${backtickedValues(SOURCE_AUTHORS)}.`);
+  }
+  return null;
+}
+
+export function changeRequestError(args, toolName) {
+  if (args.changeScope !== undefined
+    && (typeof args.changeScope !== "string" || !CHANGE_SCOPE_SET.has(args.changeScope))) {
+    return toolError(`${toolName}: \`changeScope\` must be one of ${backtickedValues(CHANGE_SCOPES)}.`);
+  }
+  if (args.effects === undefined) return null;
+  if (!Array.isArray(args.effects)) return toolError(`${toolName}: \`effects\` must be a list.`);
+  if (args.effects.length > 20) return toolError(`${toolName}: \`effects\` accepts at most 20 entries.`);
+  for (const effect of args.effects) {
+    if (!plainObject(effect) || Object.keys(effect).some((key) => !EFFECT_PROPERTY_SET.has(key))) {
+      return toolError(`${toolName}: each \`effects\` entry must contain only \`kind\`, \`ask\`, and \`strength\`.`);
+    }
+    if (typeof effect.kind !== "string" || !EFFECT_KIND_SET.has(effect.kind)) {
+      return toolError(`${toolName}: \`effects[].kind\` must be one of ${backtickedValues(EFFECT_KINDS)}.`);
+    }
+    if (typeof effect.ask !== "string" || effect.ask.length < 1 || effect.ask.length > 2000) {
+      return toolError(`${toolName}: \`effects[].ask\` must be 1 to 2,000 characters.`);
+    }
+    if (effect.strength !== undefined
+      && (typeof effect.strength !== "string" || !EFFECT_STRENGTH_SET.has(effect.strength))) {
+      return toolError(`${toolName}: \`effects[].strength\` must be one of ${backtickedValues(EFFECT_STRENGTHS)}.`);
+    }
+  }
+  return null;
+}
 
 const legacyTools = [
   {
     name: "get_my_voice",
     description:
-      "Load the user's Idiolect AI Voice Card. Call this BEFORE writing anything on the user's behalf (emails, posts, messages, docs) and then write strictly in the returned voice. Returns a style guide describing how the user actually writes.",
+      "Load the user's Idiolect AI Voice Card when they ask for personal outward-facing prose, such as an email, message, post, or reply, to match their established voice. Do not use it for ordinary factual writing or repository artifacts. Returns a style guide describing how the user actually writes.",
     inputSchema: {
       type: "object",
       properties: {
@@ -224,16 +593,94 @@ const PROVENANCE_OUTPUT_PROPERTIES = {
   validated: { type: "boolean", description: "True only when this result was measured by the validated LUAR instrument." },
   instrument: { type: ["string", "null"] },
   reason: { type: ["string", "null"] },
-  register: { type: "string" },
-  approximate: { type: "boolean" },
   voice: SELECTED_VOICE_SCHEMA,
   evidence: EVIDENCE_OUTPUT_SCHEMA,
+};
+const CREDIT_OUTPUT_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    state: {
+      type: "string",
+      enum: ["free_beta", "balance_available", "low_balance", "zero_balance", "legacy_unlimited", "accounting_unavailable"],
+    },
+    mode: { type: "string", enum: ["free", "credits"] },
+    balance: { type: ["integer", "null"], minimum: 0 },
+    balancePreview: { type: "boolean" },
+    unitCost: { type: "number", enum: [0, 1] },
+    charged: { type: "number", enum: [0, 1] },
+    unlimited: { type: "boolean" },
+    accountingAvailable: { type: "boolean" },
+    generationAvailable: { type: "boolean" },
+    purchaseRequired: { type: "boolean" },
+    manageUrl: { type: ["string", "null"] },
+    replayed: { type: "boolean" },
+    message: { type: "string" },
+  },
+  required: [
+    "state",
+    "mode",
+    "balance",
+    "balancePreview",
+    "unitCost",
+    "charged",
+    "unlimited",
+    "accountingAvailable",
+    "generationAvailable",
+    "purchaseRequired",
+    "manageUrl",
+    "replayed",
+    "message",
+  ],
+};
+const CREDIT_ERROR_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    code: { type: "string", enum: ["insufficient_credits", "credit_accounting_unavailable"] },
+    retryable: { type: "boolean", enum: [true] },
+  },
+  required: ["code", "retryable"],
+};
+const CREDIT_RETRY_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    safe: { type: "boolean", enum: [true] },
+    idempotent: { type: "boolean", enum: [true] },
+    scope: { type: "string", enum: ["pre_generation"] },
+    after: { type: "string", enum: ["balance_updated", "accounting_available"] },
+  },
+  required: ["safe", "idempotent", "scope", "after"],
+};
+// Carried by a credit-gate refusal only; a completed draft or rewrite no longer reports
+// credits (13 constants in free mode) or a status beside `state` (IDI-381).
+const CREDIT_GENERATION_OUTPUT_PROPERTIES = {
+  status: { type: "string", enum: ["purchase_required", "accounting_unavailable"] },
+  message: { type: "string" },
+  credits: CREDIT_OUTPUT_SCHEMA,
+  error: CREDIT_ERROR_SCHEMA,
+  retry: CREDIT_RETRY_SCHEMA,
+};
+const NEXT_ACTION_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    action: { type: "string", enum: ["collect_evidence", "reload_voice", "continue_writing", "ask_feedback", "retry", "done"] },
+    tool: { type: ["string", "null"], enum: ["create_my_voice", "get_my_voice", "record_voice_feedback", null] },
+  },
+  required: ["action", "tool"],
+};
+const PUBLIC_STATE_PROPERTIES = {
+  state: { type: "string", enum: ["ready", "missing", "thin", "stale", "complete", "failed"] },
+  message: { type: "string" },
+  next: NEXT_ACTION_SCHEMA,
 };
 const VOICE_OUTPUT_SCHEMA = {
   type: "object",
   properties: {
+    ...PUBLIC_STATE_PROPERTIES,
     status: { type: "string", enum: ["ready", "setup_required"] },
-    onboardingUrl: { type: ["string", "null"] },
     message: { type: "string" },
     id: { type: "string" },
     name: { type: ["string", "null"] },
@@ -247,65 +694,157 @@ const VOICE_OUTPUT_SCHEMA = {
     taboos: { type: "array", items: { type: "string" } },
     positions: { type: "array", items: { type: "string" }, description: "Real takes the user has expressed; never invent new ones." },
     evidence: EVIDENCE_OUTPUT_SCHEMA,
-    register: { type: "string" },
-    approximate: { type: "boolean" },
   },
 };
 const SCORE_OUTPUT_SCHEMA = {
   type: "object",
   properties: {
+    ...PUBLIC_STATE_PROPERTIES,
     voiceMatch: { type: ["number", "null"], description: "0–100; higher = closer to the user's own writing. Relative, not a forensic identity claim." },
     measured: { type: "boolean", description: "False when the candidate or corpus is in the unscored band, or the scorer is unavailable." },
     ...PROVENANCE_OUTPUT_PROPERTIES,
+    register: { type: "string", description: "Calibration register the anchors come from; the absolute is approximate outside it." },
+    approximate: { type: "boolean" },
   },
 };
+// A draft or rewrite is the writing, the profile that wrote it and its evidence state.
+// The score cluster (voiceMatch, measured, deltas, candidate fields, crossFit, the
+// calibration constants) was constant on every call and is gone from the account API
+// and from here (IDI-381). Voice Match is measured on score_voice.
+// IDI-522 step 2: present only for a soft language-policy pass through the profile-less
+// shared engine — mirrors app/api/mcp/schemas.ts's `caveatsOutputShape` so this stdio
+// schema stays in step with every other writing-tool surface.
+const CAVEATS_OUTPUT_PROPERTY = { caveats: { type: "array", items: { type: "string", enum: ["language"] } } };
 const REWRITE_OUTPUT_SCHEMA = {
   type: "object",
   properties: {
-    rewritten: { type: "string", description: "The recommended text. When the cross-fit-selected candidate regresses on reporting evidence, this is the original." },
-    voiceMatch: { type: ["number", "null"] },
-    delta: { type: ["number", "null"], description: "Before→after Voice Match change." },
-    measured: { type: "boolean" },
-    crossFit: { type: "boolean" },
-    candidateText: { type: "string", description: "Best generated alternative, retained even when the original is recommended." },
-    candidateVoiceMatch: { type: ["number", "null"] },
-    candidateDelta: { type: ["number", "null"] },
-    improved: { type: ["boolean", "null"] },
-    regressed: { type: ["boolean", "null"] },
-    ...PROVENANCE_OUTPUT_PROPERTIES,
+    ...PUBLIC_STATE_PROPERTIES,
+    rewritten: { type: "string", description: "The rewritten text." },
+    reason: { type: ["string", "null"], description: "Present only when scoring is enabled and the engine did not measure; says why." },
+    voice: SELECTED_VOICE_SCHEMA,
+    evidence: EVIDENCE_OUTPUT_SCHEMA,
+    ...CREDIT_GENERATION_OUTPUT_PROPERTIES,
+    ...CAVEATS_OUTPUT_PROPERTY,
   },
 };
 const DRAFT_OUTPUT_SCHEMA = {
   type: "object",
   properties: {
+    ...PUBLIC_STATE_PROPERTIES,
     draft: { type: "string", description: "New prose drafted in the user's voice." },
-    voiceMatch: { type: ["number", "null"] },
-    measured: { type: "boolean" },
-    crossFit: { type: "boolean" },
-    ...PROVENANCE_OUTPUT_PROPERTIES,
+    reason: { type: ["string", "null"], description: "Present only when scoring is enabled and the engine did not measure; says why." },
+    voice: SELECTED_VOICE_SCHEMA,
+    evidence: EVIDENCE_OUTPUT_SCHEMA,
+    ...CREDIT_GENERATION_OUTPUT_PROPERTIES,
+    ...CAVEATS_OUTPUT_PROPERTY,
   },
 };
 const CREATE_VOICE_OUTPUT_SCHEMA = {
   type: "object",
   properties: {
-    status: { type: "string", enum: ["ready", "more_evidence_required", "build_in_progress"] },
+    ...PUBLIC_STATE_PROPERTIES,
+    status: { type: "string", enum: ["ready", "more_evidence_required", "build_in_progress", "failed"] },
     message: { type: "string" },
     reason: { type: ["string", "null"] },
     voiceId: { type: ["string", "null"] },
-    onboardingUrl: { type: ["string", "null"] },
-    neededChars: { type: "number" },
-    neededBlocks: { type: "number" },
-    minimumChars: { type: "number" },
-    minimumBlocks: { type: "number" },
+    neededChars: { type: "number", description: "Present only when more writing is needed." },
+    neededBlocks: { type: "number", description: "Present only when more writing is needed." },
     replay: { type: "boolean" },
   },
 };
+const FEEDBACK_OUTPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    ...PUBLIC_STATE_PROPERTIES,
+    needsFinalText: { type: "boolean" },
+  },
+};
+const PROFILE_REF_OPTIONAL_SCHEMA = {
+  type: "string", minLength: 1,
+  description: "The Writing Profile's id, or its exact name. Omit to use the current profile.",
+};
+const PROFILE_REF_REQUIRED_SCHEMA = {
+  type: "string", minLength: 1,
+  description: "The Writing Profile's id, or its exact name.",
+};
+const PROFILE_ID_SCHEMA = { type: "string", format: "uuid" };
+const PROFILE_SAMPLE_SCHEMA = {
+  type: "array",
+  minItems: 1,
+  maxItems: 500,
+  items: { type: "string", maxLength: 20000 },
+};
+const OPTIONAL_PROFILE_SAMPLE_SCHEMA = {
+  type: "array",
+  maxItems: 500,
+  items: { type: "string", maxLength: 20000 },
+};
+const PROFILE_SAMPLE_STATE_SCHEMA = {
+  type: "object",
+  properties: {
+    profileId: PROFILE_ID_SCHEMA,
+    generation: { type: "integer", minimum: 0 },
+    samples: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          id: PROFILE_ID_SCHEMA,
+          text: { type: "string" },
+          addedAt: { type: "string" },
+        },
+        required: ["id", "text", "addedAt"],
+        additionalProperties: false,
+      },
+    },
+    needsWriting: { type: "boolean" },
+    heldNotUsable: { type: "integer", minimum: 0 },
+  },
+  required: ["profileId", "generation", "samples", "needsWriting", "heldNotUsable"],
+  additionalProperties: false,
+};
+/** What the caller must change to succeed; present only on evidence failures. */
+const PROFILE_SHORTFALL_SCHEMA = {
+  type: "object",
+  properties: {
+    reason: { type: "string", enum: ["insufficient_input", "unsupported_language"] },
+    message: { type: "string" },
+    neededChars: { type: "integer", minimum: 0 },
+    neededBlocks: { type: "integer", minimum: 0 },
+    droppedBlocks: { type: "integer", minimum: 0 },
+    minimumChars: { type: "integer", minimum: 0 },
+    minimumBlocks: { type: "integer", minimum: 0 },
+  },
+  required: ["message"],
+  additionalProperties: false,
+};
 
-export const accountTools = [
+function profileActionOutput(value, codes) {
+  return {
+    type: "object",
+    properties: {
+      ok: { type: "boolean" },
+      value,
+      error: {
+        type: "object",
+        properties: {
+          code: { type: "string", enum: [...codes, "unexpected_error"] },
+          detail: PROFILE_SHORTFALL_SCHEMA,
+        },
+        required: ["code"],
+        additionalProperties: false,
+      },
+    },
+    required: ["ok"],
+    additionalProperties: false,
+  };
+}
+
+const accountToolDefinitions = [
   {
     name: "get_my_voice",
     description:
-      "Use this when you are about to write anything on the user's behalf — emails, posts, messages, commit messages, PR descriptions, docs. It loads the user's Idiolect AI voice so you can write strictly as them.",
+      "Use this when the user asks for personal outward-facing prose, such as an email, message, post, or reply, to match their established voice. Do not use it for ordinary factual writing or repository artifacts. Reports whether setup is complete, and what is still needed when it is not.",
     inputSchema: { type: "object", properties: {} },
     outputSchema: VOICE_OUTPUT_SCHEMA,
     annotations: { readOnlyHint: true, openWorldHint: false, destructiveHint: false, title: "Load Idiolect AI Voice" },
@@ -313,10 +852,15 @@ export const accountTools = [
   {
     name: "create_my_voice",
     description:
-      "Create the authenticated user's Voice Profile from writing they supplied or explicitly approved. Returns exact evidence still needed when the input is too thin; never infer or scrape another person's writing.",
+      "Compatibility setup action for creating a first Writing Profile, from writing samples the user authored or from short answers about how they write. Use create_writing_profile for explicit multi-profile creation.",
     inputSchema: {
       type: "object",
       properties: {
+        profileId: {
+          ...PROFILE_ID_SCHEMA,
+          description:
+            "Exact owned Writing Profile to receive this evidence. Omit only when creating the account's first profile or adding to the current profile.",
+        },
         samples: {
           type: "array",
           maxItems: 500,
@@ -337,23 +881,143 @@ export const accountTools = [
           },
           description: "Optional guided questions and the user's own answers.",
         },
-        name: { type: "string", maxLength: 60, description: "Optional private name for the Voice Profile." },
-        idempotencyKey: {
-          type: "string",
-          minLength: 8,
-          maxLength: 160,
-          description: "Stable unique key for retries of this same creation intent.",
-        },
+        name: { type: "string", maxLength: 60, description: "Optional private name for the Writing Profile." },
       },
       additionalProperties: false,
     },
     outputSchema: CREATE_VOICE_OUTPUT_SCHEMA,
-    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false, title: "Create My Voice Profile" },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false, title: "Create My Writing Profile" },
+  },
+  {
+    name: "list_writing_profiles",
+    description: "List the authenticated user's Writing Profiles and identify the current profile.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    outputSchema: profileActionOutput({ type: "array" }, []),
+    annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false, destructiveHint: false, title: "List Writing Profiles" },
+  },
+  {
+    name: "list_writing_profile_samples",
+    description: "List the writing samples and stable sample IDs held by the exact Writing Profile identified by profileId. This does not change the profile.",
+    inputSchema: {
+      type: "object",
+      properties: { profileId: PROFILE_REF_REQUIRED_SCHEMA },
+      required: ["profileId"],
+      additionalProperties: false,
+    },
+    outputSchema: profileActionOutput(PROFILE_SAMPLE_STATE_SCHEMA, ["profile_not_found"]),
+    annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false, destructiveHint: false, title: "List Writing Profile Samples" },
+  },
+  {
+    name: "create_writing_profile",
+    description: "Create a new Writing Profile from approved writing. This never changes an existing profile.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: { type: "string", maxLength: 60 },
+        samples: OPTIONAL_PROFILE_SAMPLE_SCHEMA,
+        answers: {
+          type: "array",
+          maxItems: 20,
+          items: {
+            type: "object",
+            properties: {
+              question: { type: "string", maxLength: 500 },
+              answer: { type: "string", maxLength: 5000 },
+            },
+            required: ["question", "answer"],
+            additionalProperties: false,
+          },
+        },
+      },
+      additionalProperties: false,
+    },
+    outputSchema: profileActionOutput({ type: "object" }, [
+      "insufficient_evidence", "rate_limited", "request_conflict", "build_in_progress",
+    ]),
+    annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false, title: "Create Writing Profile" },
+  },
+  {
+    name: "add_samples_to_writing_profile",
+    description: "Add approved writing samples to the exact Writing Profile identified by profileId.",
+    inputSchema: {
+      type: "object",
+      properties: { profileId: PROFILE_REF_OPTIONAL_SCHEMA, samples: PROFILE_SAMPLE_SCHEMA },
+      required: ["samples"],
+      additionalProperties: false,
+    },
+    outputSchema: profileActionOutput({ type: "object" }, [
+      "insufficient_evidence", "request_conflict", "build_in_progress", "profile_not_found",
+    ]),
+    annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false, title: "Add Samples to Writing Profile" },
+  },
+  {
+    name: "replace_samples_in_writing_profile",
+    description: "Replace the writing sample set for the exact Writing Profile identified by profileId. Displaced writing is revoked, not deleted. Refuses when the profile holds writing this tool cannot list.",
+    inputSchema: {
+      type: "object",
+      properties: { profileId: PROFILE_REF_REQUIRED_SCHEMA, samples: OPTIONAL_PROFILE_SAMPLE_SCHEMA },
+      required: ["profileId", "samples"],
+      additionalProperties: false,
+    },
+    outputSchema: profileActionOutput(PROFILE_SAMPLE_STATE_SCHEMA, ["profile_not_found"]),
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: true, title: "Replace Samples in Writing Profile" },
+  },
+  {
+    name: "remove_sample_from_writing_profile",
+    description: "Remove the exact writing sample identified by sampleId from the Writing Profile identified by profileId. The sample stops being used; it is revoked, not erased.",
+    inputSchema: {
+      type: "object",
+      properties: { profileId: PROFILE_REF_REQUIRED_SCHEMA, sampleId: PROFILE_ID_SCHEMA },
+      required: ["profileId", "sampleId"],
+      additionalProperties: false,
+    },
+    outputSchema: profileActionOutput(PROFILE_SAMPLE_STATE_SCHEMA, ["profile_not_found", "sample_not_found"]),
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: true, title: "Remove Sample from Writing Profile" },
+  },
+  {
+    name: "set_current_writing_profile",
+    description: "Make the exact Writing Profile identified by profileId current for future writing.",
+    inputSchema: {
+      type: "object",
+      properties: { profileId: PROFILE_REF_REQUIRED_SCHEMA },
+      required: ["profileId"],
+      additionalProperties: false,
+    },
+    outputSchema: profileActionOutput({ type: "object" }, ["profile_not_found"]),
+    annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false, destructiveHint: false, title: "Set Current Writing Profile" },
+  },
+  {
+    name: "delete_writing_profile",
+    description: "Delete the exact Writing Profile identified by profileId. A current profile may require a replacementProfileId.",
+    inputSchema: {
+      type: "object",
+      properties: { profileId: PROFILE_REF_REQUIRED_SCHEMA, replacementProfileId: PROFILE_REF_REQUIRED_SCHEMA },
+      required: ["profileId"],
+      additionalProperties: false,
+    },
+    outputSchema: profileActionOutput({ type: "object" }, [
+      "profile_not_found", "replacement_required", "invalid_replacement",
+    ]),
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: true, title: "Delete Writing Profile" },
+  },
+  {
+    name: "get_credit_status",
+    description:
+      "Check the account's current generation-credit state. During the free beta, this confirms that no credits are being used.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    outputSchema: CREDIT_OUTPUT_SCHEMA,
+    annotations: {
+      readOnlyHint: true,
+      idempotentHint: true,
+      openWorldHint: false,
+      destructiveHint: false,
+      title: "Check Credit Status",
+    },
   },
   {
     name: "score_voice",
     description:
-      "Use this when you want to check how close a piece of text is to the user's own writing. Returns a Voice Match (0–100, relative — higher means closer to the user's voice; not a forensic identity claim).",
+      "Use this only when the user explicitly asks to measure or check how close a piece of text is to their own writing. Returns a relative Voice Match with visible provenance, or an honest reason measurement is unavailable; never a forensic identity claim.",
     inputSchema: {
       type: "object",
       properties: { text: { type: "string", description: "Text to score against the user's voice." } },
@@ -365,7 +1029,7 @@ export const accountTools = [
   {
     name: "rewrite_in_voice",
     description:
-      "Rewrite supplied prose in the user's voice. Returns an in-voice alternative with a Voice Match and before→after delta; use it only when it preserves the user's meaning and fits their request.",
+      "Rewrite supplied prose in the user's voice. Returns an in-voice alternative with measurement details and a before→after delta when measured; absolute Voice Match stays withheld unless independent held-out evidence and the target register support it. Use it only when it preserves the user's meaning and fits their request.",
     inputSchema: {
       type: "object",
       properties: {
@@ -378,6 +1042,17 @@ export const accountTools = [
           description:
             "Optional target register. Adapts the output format while keeping the user's voice; omitted, the input's own format is kept.",
         },
+        // The ask, kept out of `text`. /api/v1/rewrite has accepted this all along;
+        // only the tool schema was missing it.
+        instructions: {
+          type: "string",
+          description:
+                        "The user's actual change request — length, tone, audience, what to cut or keep, make it sound less AI-written, roughen it up, or make it sound like I am talking. Kept separate from `text`: put the request here, never inside the prose to rewrite. `changeScope` carries magnitude; `instructions` carries the requested change.",
+        },
+        changeScope: CHANGE_SCOPE_SCHEMA,
+        effects: EFFECTS_SCHEMA,
+        sourceAuthor: SOURCE_AUTHOR_SCHEMA,
+        profileId: { type: "string", format: "uuid", description: "Use this owned Writing Profile for this piece only. Select an exact profileId; this does not change the account default." },
       },
       required: ["text"],
     },
@@ -387,26 +1062,161 @@ export const accountTools = [
   {
     name: "draft_in_voice",
     description:
-      "Draft new prose in the user's voice from a supplied brief. Returns a draft with a Voice Match score for the user or agent to review.",
+      "Draft new prose in the user's voice from a supplied `brief`, with the user's direction in the optional `instructions`. Returns a draft with measurement details for review; absolute Voice Match stays withheld unless independent held-out evidence and the target register support it.",
     inputSchema: {
       type: "object",
       properties: {
-        brief: { type: "string", description: "What to write: audience, goal, constraints, and source facts." },
+        brief: {
+          type: "string",
+          description:
+            "`brief` is the material: what the piece is about and what it must contain — its audience, its goal, and the source facts and specifics it has to carry. Never paste directions into `brief`; how to write it goes in `instructions`.",
+        },
         format: {
           type: "string",
           enum: ["linkedin", "x_post", "x_thread", "newsletter", "generic"],
-          description: "Optional output format (default: generic).",
+          description: "Optional output format (default: `generic`).",
         },
+        // The direction, kept out of `brief`. /api/v1/draft accepts it; this schema is the
+        // stdio package's own copy because it cannot import lib/connectors.ts. The bounds
+        // mirror GENERATION_INPUT_LIMITS.draftInstructions, including the nonempty minimum
+        // the remote catalog advertises — an optional field that accepts "" is a third
+        // state neither side means.
+        instructions: {
+          type: "string",
+          minLength: 1,
+          maxLength: 8000,
+          description:
+            "`instructions` is the user's actual direction: how to write the piece — tone, length, format, structure, and what to leave out. Optional; omit it when the user gave none. Never paste directions into `brief`, which carries the material, and never put material here. A named output shape goes in `format`.",
+        },
+        effects: EFFECTS_SCHEMA,
+        briefAuthor: BRIEF_AUTHOR_SCHEMA,
+        profileId: { type: "string", format: "uuid", description: "Use this owned Writing Profile for this piece only. Select an exact profileId; this does not change the account default." },
       },
       required: ["brief"],
     },
     outputSchema: DRAFT_OUTPUT_SCHEMA,
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false, title: "Draft In Voice" },
   },
+  {
+    name: "learn_writing_style",
+    description:
+      "Teach Idiolect AI one lasting thing about how the user writes. Send authored writing only with the user's consent, preferences in their words, or observations grounded in their own writing. This stores learning and never writes or revises prose.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        kind: {
+          type: "string",
+          enum: ["authored_example", "preference", "observation"],
+          description: "Whether this is the user's authored writing, a preference they stated, or an observation grounded in their writing.",
+        },
+        text: { type: "string", minLength: 1, maxLength: 12000 },
+        consent: {
+          type: "boolean",
+          const: true,
+          description: "Required only for authored_example: the user wrote it and agreed it may be stored.",
+        },
+        basis: { type: "string", minLength: 1, maxLength: 2000 },
+        scope: { type: "string", enum: ["general", "occasion", "piece"] },
+        occasion: { type: "string", minLength: 1, maxLength: 500 },
+        profileId: { type: "string", format: "uuid" },
+        writingJobVersionId: { type: "string", format: "uuid" },
+      },
+      required: ["kind", "text"],
+    },
+    outputSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        status: { type: "string", enum: ["saved", "pending", "ready", "failed"] },
+        message: { type: "string" },
+        next: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            action: { type: "string", enum: ["done", "retry", "continue_writing"] },
+            tool: { type: ["string", "null"], enum: ["refine", null] },
+          },
+          required: ["action", "tool"],
+        },
+        contribution: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            id: { type: "string", format: "uuid" },
+            kind: { type: "string", enum: ["authored_example", "preference", "observation"] },
+            status: { type: "string", enum: ["pending", "waiting", "applied", "not_used", "piece_only"] },
+          },
+          required: ["id", "kind", "status"],
+        },
+        profileId: { type: "string", format: "uuid" },
+        writingJobVersionId: { type: "string", format: "uuid" },
+        neededWriting: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            pieces: { type: "integer", minimum: 0 },
+            characters: { type: "integer", minimum: 0 },
+          },
+          required: ["pieces", "characters"],
+        },
+      },
+      required: ["status", "message", "next"],
+    },
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false, title: "Learn Writing Style" },
+  },
+  {
+    name: "record_voice_feedback",
+    description:
+      "Record bounded feedback for an Idiolect AI output. Send a verdict every time the user responds to one; a verdict on its own is worth having. Put what you observed in critique. Send correctionText only when you have the user's final text verbatim.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        outputId: { type: "string", format: "uuid" },
+        // Hand-written mirror of the HTTP route's vocabulary — this file cannot import
+        // `lib/feedback/outcomes.ts`. `superseded` means the person changed the brief or
+        // direction rather than judging the text (IDI-446); keep it in step by hand.
+        status: { type: "string", enum: ["accepted", "corrected_and_accepted", "rejected", "superseded"] },
+        correctionText: {
+          type: "string",
+          minLength: 1,
+          maxLength: 20000,
+          description: "The user's final text, verbatim and complete. Never an excerpt, a diff, or your own description of what changed — if you do not have their exact words, omit this field and describe the change in critique instead.",
+        },
+        critique: {
+          type: "string",
+          minLength: 1,
+          maxLength: 2000,
+          description: "What you observed about how the output landed, in the user's words or your own: what was wrong, what they changed, or why they kept it. Free text, and the right home for any description of an edit you cannot quote verbatim.",
+        },
+      },
+      required: ["outputId", "status"],
+    },
+    outputSchema: FEEDBACK_OUTPUT_SCHEMA,
+    annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: false, title: "Record Voice Feedback" },
+  },
 ];
+
+export const accountTools = progressiveCatalog.tools;
+export const accountInstructions = progressiveCatalog.instructions;
+/** Hidden schemas retained for cached stdio callers and compatibility tests. */
+export const accountCompatibilityTools = accountToolDefinitions;
 
 function toolError(message) {
   return { content: [{ type: "text", text: message }], isError: true };
+}
+
+function accountToolError(error) {
+  if (error instanceof AccountRequestError && error.structuredContent) {
+    return {
+      content: [{ type: "text", text: error.structuredContent.message }],
+      structuredContent: error.structuredContent,
+      isError: true,
+    };
+  }
+  if (error instanceof AccountRequestError) return toolError(error.message);
+  return toolError("Idiolect AI account API failed before a safe response was available.");
 }
 
 function createVoiceBody(args) {
@@ -433,43 +1243,231 @@ function createVoiceBody(args) {
   if (args.name !== undefined && (typeof args.name !== "string" || args.name.length > 60)) {
     return { error: "create_my_voice: `name` must be text of at most 60 characters." };
   }
-  if (
-    args.idempotencyKey !== undefined
-    && (
-      typeof args.idempotencyKey !== "string"
-      || args.idempotencyKey.length < 8
-      || args.idempotencyKey.length > 160
-    )
-  ) {
-    return { error: "create_my_voice: `idempotencyKey` must be 8–160 characters." };
+  if (args.profileId !== undefined && typeof args.profileId !== "string") {
+    return { error: "create_my_voice: `profileId` must be a Writing Profile UUID." };
   }
   return {
     body: {
+      ...(args.profileId !== undefined ? { profileId: args.profileId } : {}),
       samples,
       answers: answers.map(({ question, answer }) => ({ question, answer })),
       ...(args.name !== undefined ? { name: args.name } : {}),
-      ...(args.idempotencyKey !== undefined ? { idempotencyKey: args.idempotencyKey } : {}),
     },
   };
 }
 
 function safeCreationResult(r) {
-  return {
-    status: r.status ?? "more_evidence_required",
-    message: r.message ?? "Voice Profile setup needs more information.",
+  const status = r.status ?? "more_evidence_required";
+  const state = status === "ready" ? "complete" : status === "build_in_progress" ? "stale" : status === "failed" ? "failed" : "thin";
+  const next = status === "ready"
+    ? { action: "reload_voice", tool: "get_my_voice" }
+    : status === "build_in_progress"
+      ? { action: "retry", tool: "create_my_voice" }
+    : status === "failed" ? { action: "done", tool: null } : { action: "collect_evidence", tool: "create_my_voice" };
+  const neededChars = Number.isFinite(r.neededChars) ? r.neededChars : 0;
+  const neededBlocks = Number.isFinite(r.neededBlocks) ? r.neededBlocks : 0;
+  const message = state === "thin"
+    ? `More of the user's own writing is needed: add ${neededBlocks} distinct block${neededBlocks === 1 ? "" : "s"} and ${neededChars} characters.`
+    : r.message ?? (state === "complete" ? "Writing Profile ready." : "Writing Profile creation is still in progress.");
+  return publicMcpState(state, message, next, {
+    status,
     reason: r.reason ?? null,
     voiceId: r.voiceId ?? null,
-    onboardingUrl: r.onboardingUrl ?? null,
-    neededChars: Number.isFinite(r.neededChars) ? r.neededChars : 0,
-    neededBlocks: Number.isFinite(r.neededBlocks) ? r.neededBlocks : 0,
-    minimumChars: Number.isFinite(r.minimumChars) ? r.minimumChars : 600,
-    minimumBlocks: Number.isFinite(r.minimumBlocks) ? r.minimumBlocks : 4,
+    // The shortfall appears only when there is one; the fixed minimums are gone (IDI-381).
+    ...(neededChars > 0 || neededBlocks > 0 ? { neededChars, neededBlocks } : {}),
     replay: r.replay === true,
+  });
+}
+
+/** Preserve a server-proven refinement conflict without copying unknown fields. */
+function safeCreationFailurePayload(value) {
+  if (
+    !plainObject(value)
+    || value.status !== "failed"
+    || typeof value.message !== "string"
+    || !(value.reason === null || typeof value.reason === "string")
+    || !(value.voiceId === null || typeof value.voiceId === "string")
+    || typeof value.replay !== "boolean"
+  ) return null;
+  return safeCreationResult(value);
+}
+
+const WRITING_PROFILE_ERROR_CODES = {
+  list_writing_profiles: new Set(["unexpected_error"]),
+  list_writing_profile_samples: new Set(["profile_not_found", "unexpected_error"]),
+  create_writing_profile: new Set([
+    "insufficient_evidence", "rate_limited", "request_conflict", "build_in_progress", "unexpected_error",
+  ]),
+  add_samples_to_writing_profile: new Set([
+    "insufficient_evidence", "request_conflict", "build_in_progress", "profile_not_found", "unexpected_error",
+  ]),
+  replace_samples_in_writing_profile: new Set([
+    "insufficient_evidence", "profile_not_found", "samples_not_fully_visible", "unexpected_error",
+  ]),
+  remove_sample_from_writing_profile: new Set([
+    "profile_not_found", "sample_not_found", "unexpected_error",
+  ]),
+  set_current_writing_profile: new Set(["profile_not_found", "unexpected_error"]),
+  delete_writing_profile: new Set([
+    "profile_not_found", "replacement_required", "invalid_replacement", "unexpected_error",
+  ]),
+};
+
+function writingProfileRequest(name, args) {
+  if (name === "list_writing_profiles") return { path: "/api/writing-profiles", method: "GET" };
+  if (name === "create_writing_profile") {
+    return {
+      path: "/api/writing-profiles",
+      method: "POST",
+      body: {
+        samples: args.samples ?? [],
+        answers: args.answers ?? [],
+        ...(args.name === undefined ? {} : { name: args.name }),
+      },
+    };
+  }
+  const id = encodeURIComponent(args.profileId ?? '');
+  if (name === "list_writing_profile_samples") {
+    return { path: `/api/writing-profiles/${id}/samples`, method: "GET" };
+  }
+  if (name === "add_samples_to_writing_profile") {
+    // Absent means the current profile; the account API resolves it, this only forwards.
+    const path = args.profileId === undefined
+      ? "/api/writing-profiles/current/samples"
+      : `/api/writing-profiles/${id}/samples`;
+    return { path, method: "POST", body: { samples: args.samples } };
+  }
+  if (name === "replace_samples_in_writing_profile") {
+    return { path: `/api/writing-profiles/${id}/samples`, method: "PUT", body: { samples: args.samples } };
+  }
+  if (name === "remove_sample_from_writing_profile") {
+    const sampleId = encodeURIComponent(args.sampleId);
+    return { path: `/api/writing-profiles/${id}/samples/${sampleId}`, method: "DELETE" };
+  }
+  if (name === "set_current_writing_profile") {
+    return { path: `/api/writing-profiles/${id}/current`, method: "PUT" };
+  }
+  const replacement = args.replacementProfileId === undefined
+    ? ""
+    : `?replacementProfileId=${encodeURIComponent(args.replacementProfileId)}`;
+  return { path: `/api/writing-profiles/${id}${replacement}`, method: "DELETE" };
+}
+
+/** The shortfall is re-validated field by field: an unchecked passthrough would let the
+ * account API widen this tool's declared output schema without the stdio server knowing. */
+function safeProfileShortfall(value) {
+  if (!plainObject(value) || typeof value.message !== "string") return null;
+  const detail = { message: value.message.slice(0, 2000) };
+  if (value.reason === "insufficient_input" || value.reason === "unsupported_language") {
+    detail.reason = value.reason;
+  }
+  // Counts travel only when the evidence gate produced them; a profile that could not be
+  // found has no shortfall to count.
+  for (const key of ["neededChars", "neededBlocks", "droppedBlocks", "minimumChars", "minimumBlocks"]) {
+    if (Number.isInteger(value[key]) && value[key] >= 0) detail[key] = value[key];
+  }
+  return detail;
+}
+
+function safeWritingProfileResult(name, value) {
+  if (!plainObject(value) || typeof value.ok !== "boolean") return null;
+  if (value.ok === true && Object.hasOwn(value, "value")) return { ok: true, value: value.value };
+  const code = plainObject(value.error) ? value.error.code : null;
+  if (typeof code !== "string" || !WRITING_PROFILE_ERROR_CODES[name]?.has(code)) return null;
+  const detail = safeProfileShortfall(plainObject(value.error) ? value.error.detail : null);
+  return { ok: false, error: detail ? { code, detail } : { code } };
+}
+
+function writingProfileSuccessMessage(name, value, title) {
+  if (name === "list_writing_profiles" && Array.isArray(value)) {
+    if (value.length === 0) return "No Writing Profiles found.";
+    return ["Writing Profiles:", ...value.map((profile) => {
+      const label = typeof profile?.name === "string" && profile.name.length > 0
+        ? profile.name
+        : "Unnamed profile";
+      const current = profile?.isCurrent === true ? " (current)" : "";
+      return `- ${label}: ${String(profile?.id ?? "unknown")}${current}`;
+    })].join("\n");
+  }
+  if (
+    ["list_writing_profile_samples", "replace_samples_in_writing_profile", "remove_sample_from_writing_profile"].includes(name)
+    && plainObject(value)
+    && Array.isArray(value.samples)
+  ) {
+    const samples = value.samples.map((sample) => {
+      const id = plainObject(sample) && typeof sample.id === "string" ? sample.id : "unknown";
+      const writing = plainObject(sample) && typeof sample.text === "string" ? sample.text : "";
+      return `- sampleId ${id}: ${JSON.stringify(writing)}`;
+    });
+    return [
+      `${title} complete for profile ${String(value.profileId ?? "unknown")} (generation ${String(value.generation ?? "unknown")}).`,
+      `Usable samples: ${value.samples.length}.`,
+      ...(samples.length > 0 ? samples : ["- No usable writing samples remain."]),
+      ...(Number.isInteger(value.heldNotUsable) && value.heldNotUsable > 0
+        ? [`Held but not usable for rebuild: ${value.heldNotUsable}.`]
+        : []),
+    ].join("\n");
+  }
+  return `${title} complete.`;
+}
+
+async function callWritingProfileApi(name, args) {
+  const request = writingProfileRequest(name, args);
+  const res = await fetch(`${ACCOUNT_BASE}${request.path}`, {
+    method: request.method,
+    headers: {
+      Authorization: `Bearer ${API_KEY}`,
+      ...(request.body ? { "content-type": "application/json" } : {}),
+    },
+    body: request.body ? JSON.stringify(request.body) : undefined,
+  });
+  let parsed = null;
+  try {
+    parsed = safeWritingProfileResult(name, await res.json());
+  } catch {
+    // The bounded failure below handles non-JSON and malformed responses.
+  }
+  if (!parsed) throw new AccountRequestError(`${name}: Idiolect AI account API failed (${res.status}).`, res.status);
+  const title = accountToolDefinitions.find((tool) => tool.name === name)?.annotations.title ?? name;
+  const building = name === "create_writing_profile"
+    && parsed.ok === false
+    && parsed.error.code === "build_in_progress";
+  const message = parsed.ok
+    ? writingProfileSuccessMessage(name, parsed.value, title)
+    : building
+      ? "Writing Profile accepted and building. Retry this same call shortly to get the completed profile."
+    : parsed.error.detail?.message ?? `${title} failed: ${parsed.error.code}.`;
+  return {
+    content: [{ type: "text", text: message }],
+    structuredContent: parsed,
+    ...(!parsed.ok && !building ? { isError: true } : {}),
   };
 }
 
 /** Import-safe account handler used by the stdio server and its parity tests. */
 export async function handleAccountTool(name, args = {}) {
+  if (Object.hasOwn(WRITING_PROFILE_ERROR_CODES, name)) {
+    try {
+      return await callWritingProfileApi(name, args);
+    } catch (error) {
+      return accountToolError(error);
+    }
+  }
+  if (name === "get_credit_status") {
+    try {
+      const credits = safeCreditPresentation(await accountRequest("/api/v1/credits", {
+        toolName: "get_credit_status",
+      }));
+      if (!credits) return toolError("get_credit_status: Idiolect AI returned an invalid credit status.");
+      return {
+        content: [{ type: "text", text: credits.message }],
+        structuredContent: credits,
+      };
+    } catch (error) {
+      return accountToolError(error);
+    }
+  }
+
   if (name === "get_my_voice") {
     try {
       const r = await accountRequest("/api/v1/voice", { toolName: "get_my_voice" });
@@ -481,28 +1479,32 @@ export async function handleAccountTool(name, args = {}) {
             text: `${card}\n\n---\n(Idiolect AI account voice loaded. Write everything as this person from now on.)`,
           },
         ],
-        structuredContent: {
+        structuredContent: publicMcpState("ready", "Writing Profile ready.", { action: "continue_writing", tool: null }, {
           status: "ready",
-          onboardingUrl: null,
-          message: "Voice Profile ready.",
           ...(r.voice || {}),
-        },
+        }),
       };
     } catch (error) {
       if (error instanceof AccountRequestError && error.status === 404) {
-        const message = "Your Idiolect AI account is connected. A Voice Profile is the only step left. Choose one: paste 3–5 examples of writing you authored, or say ‘Guide me’ for a short voice interview. Nothing will be created until you ask.";
+        const message = "No Writing Profile yet. Offer the user both ways to create one: sharing writing they authored, or answering a few short questions about how they write. Use only natural writing the user actually composed; approval alone does not establish authorship. Nothing is created until the user agrees.";
         return {
           content: [{ type: "text", text: message }],
-          structuredContent: { status: "setup_required", onboardingUrl: null, message },
+          structuredContent: publicMcpState("missing", message, { action: "collect_evidence", tool: "create_my_voice" }, {
+            status: "setup_required",
+          }),
         };
       }
-      return toolError(String(error));
+      return accountToolError(error);
     }
   }
 
   if (name === "create_my_voice") {
     const prepared = createVoiceBody(args);
-    if (prepared.error) return toolError(prepared.error);
+    if (prepared.error) return {
+      content: [{ type: "text", text: prepared.error }],
+      structuredContent: publicMcpState("failed", prepared.error, { action: "retry", tool: "create_my_voice" }),
+      isError: true,
+    };
     try {
       const r = await accountRequest("/api/v1/voice/create", {
         method: "POST",
@@ -515,20 +1517,40 @@ export async function handleAccountTool(name, args = {}) {
         structuredContent,
       };
     } catch (error) {
-      return toolError(String(error));
+      return accountToolError(error);
+    }
+  }
+
+  if (name === "record_voice_feedback" || name === "learn_writing_style") {
+    try {
+      return await accountMcpRequest(name, args);
+    } catch {
+      const learning = name === "learn_writing_style";
+      const message = learning
+        ? "Writing style could not be saved. Retry once or finish."
+        : "Feedback could not be recorded. Retry once or finish.";
+      return {
+        content: [{ type: "text", text: message }],
+        ...(learning
+          ? { structuredContent: { status: "failed", message, next: { action: "retry", tool: null } } }
+          : { structuredContent: publicMcpState("failed", message, { action: "retry", tool: "record_voice_feedback" }) }),
+        isError: true,
+      };
     }
   }
 
   return undefined;
 }
 
+const PACKAGE_VERSION = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")).version;
 const server = new Server(
-  { name: "idiolect", version: "0.4.0" },
+  { name: "idiolect", version: PACKAGE_VERSION },
   {
     capabilities: { tools: {} },
-    // Hint folded into the client's context (MCP spec): use Idiolect AI proactively.
-    instructions:
-      "Idiolect AI makes you write in THIS user's own voice. Whenever you are about to write any prose on the user's behalf — emails, replies, messages, posts, commit messages, PR descriptions, docs — FIRST call get_my_voice (once per session) and write in that voice. If setup is required, explain that the user can paste 3–5 examples of writing they authored or ask for a short guided interview. If they choose the interview, ask one question at a time about how they communicate and retain only their answers as approved evidence. Use create_my_voice only after the user explicitly asks to create the profile from writing they supplied or approved; never infer, scrape, or attribute someone else's writing to them. get_my_voice may be used afterward to confirm readiness. You may call rewrite_in_voice to generate an in-voice alternative with a Voice Match; use it only when it preserves the user's meaning and fits their request. Do not use for code. Never invent the user's opinions — only match their style.",
+    // Hint folded into the client's context (MCP spec).
+    instructions: ACCOUNT_MODE
+      ? accountInstructions
+      : "Use `rewrite_in_voice` or `draft_in_voice` only when the user asks for writing in the configured voice. Use `score_voice` only when the user explicitly asks for measurement. Never infer another person's writing or invent the user's opinions.",
   },
 );
 
@@ -536,9 +1558,19 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: ACCOUNT_MODE ? accountTools : legacyTools,
 }));
 
-server.setRequestHandler(CallToolRequestSchema, async (req) => {
+export async function handleToolRequest(req) {
   if (ACCOUNT_MODE) {
     const args = req.params.arguments || {};
+    if (
+      PROGRESSIVE_ACCOUNT_TOOL_NAMES.has(req.params.name) ||
+      REMOTE_COMPATIBILITY_TOOL_NAMES.has(req.params.name)
+    ) {
+      try {
+        return await accountMcpRequest(req.params.name, args);
+      } catch (error) {
+        return accountToolError(error);
+      }
+    }
     const nativeAccountResult = await handleAccountTool(req.params.name, args);
     if (nativeAccountResult) return nativeAccountResult;
 
@@ -555,26 +1587,37 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         });
         return {
           content: [{ type: "text", text: scoreSummary(r) }],
-          structuredContent: {
-            voiceMatch: r.voiceMatch ?? null,
+          structuredContent: publicMcpState("complete", "Voice Match check complete.", { action: "continue_writing", tool: null }, {
+            voiceMatch: r.absoluteScoreReportable === false ? null : r.voiceMatch ?? null,
             measured: !!r.measured,
             validated: !!r.validated,
             instrument: r.instrument ?? null,
             reason: r.reason ?? null,
-            register: r.register ?? "",
-            approximate: !!r.approximate,
+            ...(typeof r.register === "string" ? { register: r.register } : {}),
+            ...(typeof r.approximate === "boolean" ? { approximate: r.approximate } : {}),
             ...(r.voice ? { voice: r.voice } : {}),
             ...(r.evidence ? { evidence: r.evidence } : {}),
-          },
+          }),
         };
       } catch (e) {
-        return { content: [{ type: "text", text: String(e) }], isError: true };
+        return accountToolError(e);
       }
     }
 
     if (req.params.name === "rewrite_in_voice") {
       const text = typeof args.text === "string" ? args.text.trim() : "";
+      const profileId = typeof args.profileId === "string" ? args.profileId : undefined;
       const targetRegister = typeof args.targetRegister === "string" ? args.targetRegister : undefined;
+      const instructions = typeof args.instructions === "string" && args.instructions.trim()
+        ? args.instructions.trim()
+        : undefined;
+      const invalidChangeRequest = changeRequestError(args, "rewrite_in_voice");
+      if (invalidChangeRequest) return invalidChangeRequest;
+      const invalidSourceAuthor = authorProvenanceError(args, "rewrite_in_voice", "sourceAuthor");
+      if (invalidSourceAuthor) return invalidSourceAuthor;
+      const changeScope = args.changeScope === "polish" ? "light_edit" : args.changeScope;
+      const effects = args.effects;
+      const sourceAuthor = args.sourceAuthor;
       if (!text) {
         return { content: [{ type: "text", text: "rewrite_in_voice: provide `text` to rewrite." }], isError: true };
       }
@@ -583,7 +1626,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
           content: [
             {
               type: "text",
-              text: `rewrite_in_voice: \`targetRegister\` must be one of ${REWRITE_REGISTERS.join(", ")}.`,
+              text: `rewrite_in_voice: \`targetRegister\` must be one of ${backtickedValues(REWRITE_REGISTERS)}.`,
             },
           ],
           isError: true,
@@ -592,45 +1635,49 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       try {
         const r = await accountRequest("/api/v1/rewrite", {
           method: "POST",
-          body: { text, ...(targetRegister ? { targetRegister } : {}) },
+          body: {
+            text,
+            ...(profileId !== undefined ? { voice: profileId } : {}),
+            ...(targetRegister ? { targetRegister } : {}),
+            ...(instructions ? { instructions } : {}),
+            ...(changeScope !== undefined ? { changeScope } : {}),
+            ...(effects !== undefined ? { effects } : {}),
+            ...(sourceAuthor !== undefined ? { sourceAuthor } : {}),
+          },
           toolName: "rewrite_in_voice",
         });
+        // The account API returns the rewrite, the profile and its evidence state. The
+        // score block this used to print and the constants it used to coerce into the
+        // structured result are gone (IDI-381).
         return {
-          content: [
-            {
-              type: "text",
-              text: `Rewritten:\n${r.rewritten || ""}\n\n${scoreSummary(r)}${formatAlternatives(r.alternatives)}`,
-            },
-          ],
-          structuredContent: {
+          content: [{ type: "text", text: `Rewritten:\n${r.rewritten || ""}` }],
+          structuredContent: publicMcpState("complete", "Rewrite complete.", { action: "continue_writing", tool: null }, {
             rewritten: r.rewritten ?? "",
-            voiceMatch: r.voiceMatch ?? null,
-            delta: r.delta ?? null,
-            measured: !!r.measured,
-            crossFit: !!r.crossFit,
-            candidateText: r.candidateText ?? r.rewritten ?? "",
-            candidateVoiceMatch: r.candidateVoiceMatch ?? null,
-            candidateDelta: r.candidateDelta ?? null,
-            improved: r.improved ?? null,
-            regressed: r.regressed ?? null,
-            validated: !!r.validated,
-            instrument: r.instrument ?? null,
-            reason: r.reason ?? null,
-            register: r.register ?? "",
-            approximate: !!r.approximate,
+            ...(r.reason !== undefined ? { reason: r.reason ?? null } : {}),
             ...(r.voice ? { voice: r.voice } : {}),
             ...(r.evidence ? { evidence: r.evidence } : {}),
-          },
+          }),
         };
       } catch (e) {
-        return { content: [{ type: "text", text: String(e) }], isError: true };
+        return accountToolError(e);
       }
     }
 
     if (req.params.name === "draft_in_voice") {
       const brief = typeof args.brief === "string" ? args.brief.trim() : "";
+      const profileId = typeof args.profileId === "string" ? args.profileId : undefined;
       const format = typeof args.format === "string" ? args.format : undefined;
+      const instructions = typeof args.instructions === "string" && args.instructions.trim()
+        ? args.instructions.trim()
+        : undefined;
       const formats = new Set(["linkedin", "x_post", "x_thread", "newsletter", "generic"]);
+      const invalidChangeRequest = changeRequestError(args, "draft_in_voice");
+      if (invalidChangeRequest) return invalidChangeRequest;
+      const invalidBriefAuthor = authorProvenanceError(args, "draft_in_voice", "briefAuthor");
+      if (invalidBriefAuthor) return invalidBriefAuthor;
+      const changeScope = args.changeScope === "polish" ? "light_edit" : args.changeScope;
+      const effects = args.effects;
+      const briefAuthor = args.briefAuthor;
       if (!brief) {
         return { content: [{ type: "text", text: "draft_in_voice: provide `brief` to draft from." }], isError: true };
       }
@@ -639,7 +1686,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
           content: [
             {
               type: "text",
-              text: "draft_in_voice: `format` must be one of linkedin, x_post, x_thread, newsletter, generic.",
+              text: `draft_in_voice: \`format\` must be one of ${backtickedValues([...formats])}.`,
             },
           ],
           isError: true,
@@ -648,32 +1695,28 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       try {
         const r = await accountRequest("/api/v1/draft", {
           method: "POST",
-          body: { brief, ...(format ? { format } : {}) },
+          body: {
+            brief,
+            ...(profileId !== undefined ? { voice: profileId } : {}),
+            ...(format ? { format } : {}),
+            ...(instructions ? { instructions } : {}),
+            ...(changeScope !== undefined ? { changeScope } : {}),
+            ...(effects !== undefined ? { effects } : {}),
+            ...(briefAuthor !== undefined ? { briefAuthor } : {}),
+          },
           toolName: "draft_in_voice",
         });
         return {
-          content: [
-            {
-              type: "text",
-              text: `Draft:\n${r.draft || ""}\n\n${scoreSummary(r)}${formatAlternatives(r.alternatives)}`,
-            },
-          ],
-          structuredContent: {
+          content: [{ type: "text", text: `Draft:\n${r.draft || ""}` }],
+          structuredContent: publicMcpState("complete", "Draft complete.", { action: "continue_writing", tool: null }, {
             draft: r.draft ?? "",
-            voiceMatch: r.voiceMatch ?? null,
-            measured: !!r.measured,
-            crossFit: !!r.crossFit,
-            validated: !!r.validated,
-            instrument: r.instrument ?? null,
-            reason: r.reason ?? null,
-            register: r.register ?? "",
-            approximate: !!r.approximate,
+            ...(r.reason !== undefined ? { reason: r.reason ?? null } : {}),
             ...(r.voice ? { voice: r.voice } : {}),
             ...(r.evidence ? { evidence: r.evidence } : {}),
-          },
+          }),
         };
       } catch (e) {
-        return { content: [{ type: "text", text: String(e) }], isError: true };
+        return accountToolError(e);
       }
     }
 
@@ -701,14 +1744,11 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     }
     try {
       const r = await scoreVoice(texts, region);
-      const lines = r.scores
-        .map((s, i) => `#${i + 1} · Voice Match ${s.voiceMatch}/100 — ${s.text.slice(0, 60)}…`)
-        .join("\n");
       return {
         content: [
           {
             type: "text",
-            text: `${lines}\n\n(Relative voice-fidelity on the validated LUAR metric — higher = reads more like you. Revise low-scoring drafts before sending.)`,
+            text: formatLegacyScoreVoiceResult(r),
           },
         ],
       };
@@ -745,7 +1785,9 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   } catch (e) {
     return { content: [{ type: "text", text: String(e) }], isError: true };
   }
-});
+}
+
+server.setRequestHandler(CallToolRequestSchema, handleToolRequest);
 
 function isMainModule() {
   if (!process.argv[1]) return false;
