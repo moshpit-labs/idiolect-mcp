@@ -34,7 +34,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import {
   publicMcpState,
-} from "../lib/mcp/public-contract.js";
+} from "./public-contract.js";
 
 const progressiveCatalog = JSON.parse(
   readFileSync(new URL("./progressive-catalog.json", import.meta.url), "utf8"),
@@ -488,6 +488,18 @@ const BRIEF_AUTHOR_SCHEMA = {
   enum: SOURCE_AUTHORS,
   description:
     "Who wrote the brief. `user` only when the person wrote it themselves; `host` when you (the assistant) drafted it; `other` for a third party's text. Leave it out if unsure.",
+};
+const CALIBRATION_SCHEMA = {
+  type: "object",
+  properties: {
+    direction: {
+      type: "string",
+      enum: ["direct", "balanced", "gentle"],
+      description: "The user's answer to the single task-local calibration question.",
+    },
+  },
+  required: ["direction"],
+  additionalProperties: false,
 };
 
 /** Validates `sourceAuthor`/`briefAuthor` and defaults an absent one to `"unknown"` on the
@@ -1052,6 +1064,7 @@ const accountToolDefinitions = [
         changeScope: CHANGE_SCOPE_SCHEMA,
         effects: EFFECTS_SCHEMA,
         sourceAuthor: SOURCE_AUTHOR_SCHEMA,
+        calibration: CALIBRATION_SCHEMA,
         profileId: { type: "string", format: "uuid", description: "Use this owned Writing Profile for this piece only. Select an exact profileId; this does not change the account default." },
       },
       required: ["text"],
@@ -1090,6 +1103,7 @@ const accountToolDefinitions = [
         },
         effects: EFFECTS_SCHEMA,
         briefAuthor: BRIEF_AUTHOR_SCHEMA,
+        calibration: CALIBRATION_SCHEMA,
         profileId: { type: "string", format: "uuid", description: "Use this owned Writing Profile for this piece only. Select an exact profileId; this does not change the account default." },
       },
       required: ["brief"],
@@ -1618,6 +1632,7 @@ export async function handleToolRequest(req) {
       const changeScope = args.changeScope === "polish" ? "light_edit" : args.changeScope;
       const effects = args.effects;
       const sourceAuthor = args.sourceAuthor;
+      const calibration = args.calibration;
       if (!text) {
         return { content: [{ type: "text", text: "rewrite_in_voice: provide `text` to rewrite." }], isError: true };
       }
@@ -1643,6 +1658,7 @@ export async function handleToolRequest(req) {
             ...(changeScope !== undefined ? { changeScope } : {}),
             ...(effects !== undefined ? { effects } : {}),
             ...(sourceAuthor !== undefined ? { sourceAuthor } : {}),
+            ...(calibration !== undefined ? { calibration } : {}),
           },
           toolName: "rewrite_in_voice",
         });
@@ -1678,6 +1694,7 @@ export async function handleToolRequest(req) {
       const changeScope = args.changeScope === "polish" ? "light_edit" : args.changeScope;
       const effects = args.effects;
       const briefAuthor = args.briefAuthor;
+      const calibration = args.calibration;
       if (!brief) {
         return { content: [{ type: "text", text: "draft_in_voice: provide `brief` to draft from." }], isError: true };
       }
@@ -1703,6 +1720,7 @@ export async function handleToolRequest(req) {
             ...(changeScope !== undefined ? { changeScope } : {}),
             ...(effects !== undefined ? { effects } : {}),
             ...(briefAuthor !== undefined ? { briefAuthor } : {}),
+            ...(calibration !== undefined ? { calibration } : {}),
           },
           toolName: "draft_in_voice",
         });
