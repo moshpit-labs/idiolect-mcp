@@ -1,6 +1,6 @@
 {
   "name": "idiolect-mcp",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "mcpName": "app.idiolect/idiolect-ai",
   "type": "module",
   "bin": {

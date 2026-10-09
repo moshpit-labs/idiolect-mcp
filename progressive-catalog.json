@@ -1,10 +1,10 @@
 {
-  "instructions": "Idiolect AI writes prose with the authenticated user's Writing Profile. It changes profile settings only when the user asks.\n\nWriting: call `write` when the user explicitly asks for Idiolect AI, asks to use their Writing Profile, or asks to use their established personal style for new prose. Call `rewrite` for supplied prose under the same trigger. Never use them for ambient writing, code, factual lookup, repository work, sending, publishing, or another person's style.\n\nWhen `write` or `rewrite` returns `needs_setup`, keep the task unchanged and follow `next.action`. If `next.action` is `choose_setup`: Show all five `setupOptions` in the supplied order, numbered 1–5. Keep each label and one-line description. Open with \"How should Idiolect AI write this?\" and lead with the write-now option. End with: Reply with a number, a name, or just write it. Your request is saved; you don't need to repeat it. Then wait for the user to answer. An answer in the chat is enough. Map a number to the option you actually displayed in this conversation, including an older or reordered menu. Map a template name directly. If no template is named, ask which template. Map 'whatever', 'just write it', and 'skip' to `plain`. Do not ask for confirmation. If the user does not want a Writing Profile or a template, select `plain`. If the user explicitly wants a template for all their writing, add `alwaysUse` true to that template; otherwise leave it unset. If they abandon profile setup for plain or a named template, complete the same held request with that choice immediately. Then call the same writing tool with the selected option. For `check_context` or `ask_user`, follow the returned message instead; do not show the five-option setup menu. Set a persistent default only when the user requests one.\n\nWhen a result returns `needs_evidence`, offer three choices. The user may paste writing, answer a few short questions, or approve a search in one source. When the user selects a source, ask permission before access. Show the exact excerpts or answers before sending. Send only approved material. Set `source` and `userApproved`. Exclude AI text, prompts, templates, signatures, quotations, and forwarded text. If the user declines, finish the held request with plain style or their selected template.\n\nWhen the user requests a change to returned writing, call `refine_writing` with its reference. Record an outcome only after the user reports it. Send `finalText` only when their exact final wording is known. Do not request a rating.\n\nWhen the user asks Idiolect AI to remember authored prose, call `add_writing_samples`; if they have no Writing Profile yet, call `create_writing_profile` with it instead. Confirm authorship and storage permission. When the user states a lasting rule, call `add_writing_rule`. A rule without `profile` applies to all profiles. Do not infer a lasting rule from an ordinary conversation or one task.\n\nWhen the user asks to inspect their profiles, call `view_writing_profile`. Call `list_writing_samples` for the writing behind one profile. When the user asks for a profile change, call the one action-led profile tool for that change. Describe the change before calling. The host confirmation for a destructive tool is sufficient; do not add a second confirmation step. Profile tools do not write prose.\n\nPreserve supplied facts and protected wording. Keep the source narrator unless the user requests a change. Ask only for necessary facts, consent, or unresolved ambiguity. Never invent facts, positions, experiences, or opinions.\n\nHost context boundary: use memory, prior chats, connected sources, or files only after the user approves access for this request. After access, show the exact excerpts and ask which may be sent. Send only approved excerpts. Do not send broad history or extra context. The connector never directs another plugin or connector to gather material.",
+  "instructions": "Idiolect AI creates and revises writing for the user. A Writing Profile personalizes the result using writing samples, stated preferences, and learned patterns. The profile tools support continued personalization throughout writing and revision.\n\nUse Idiolect AI for requested writing tasks, including the writing portion of a larger workflow. These span personal, professional, technical, academic, and creative content. Examples include messages, reports, applications, speeches, product copy, and articles. These are examples, not required formats. The user does not need to name Idiolect AI or request a Writing Profile.\n\nFor new writing from requests, facts, notes, or outlines, call `write`. For existing text, call `rewrite`. Changes include corrections, summarization, expansion, simplification, paraphrasing, restructuring, and changes of tone, style, audience, or format. Preserve requests such as 'make this sound like me' or 'make this less AI-written' in `instructions`. An existing Writing Profile is not required to start. Call the writing tool without first checking profile state.\n\nWhen `write` or `rewrite` returns `needs_setup`, keep the task unchanged. Follow `next.action`. For `choose_setup`, follow these steps. Show all five `setupOptions` in the supplied order, numbered 1–5. Keep each label and one-line description. Open with \"How should Idiolect AI write this?\" and lead with the write-now option. End with: Reply with a number, a name, or just write it. Your request is saved; you don't need to repeat it. Then wait for the user to answer. An answer in the chat is enough. Map a number to the option you actually displayed in this conversation, including an older or reordered menu. Map a template name directly. If no template is named, ask which template. Map 'whatever', 'just write it', and 'skip' to `plain`. Do not ask for confirmation. If the user does not want a Writing Profile or a template, select `plain`. If the user explicitly wants a template for all their writing, add `alwaysUse` true to that template; otherwise leave it unset. If they abandon profile setup for plain or a named template, complete the same held request with that choice immediately. Then call the same writing tool with the selected option. For `check_context` or `ask_user`, follow the returned message instead of the setup menu. Set a persistent default only when the user requests one.\n\nWhen a result returns `needs_evidence`, offer pasted writing or short questions. If host rules permit another source, the user can approve access to that source. Before sending material, show the exact excerpts or answers and obtain the required approval. Reuse approval already given for that exact material and purpose. Send only approved material. Set `source` and `userApproved` accurately. Exclude AI text, prompts, templates, signatures, quotations, and forwarded text from learning evidence. If the user declines, finish the held request with plain style or their selected template.\n\nWhen the user requests a change to returned writing, call `refine_writing` with its reference. The user does not need to name Idiolect AI again. Record an outcome only after the user reports it. Send `finalText` only when their exact final wording is known. Do not request a rating.\n\nDevelop personalization during writing and revision workflows, within the user's permission for that material and purpose. When approved authored examples are available, call `add_writing_samples`. If no Writing Profile exists, use `create_writing_profile` instead. A separate profile-management request is not required. When the user states a lasting writing preference, call `add_writing_rule`. Keep their words and stated scope. A rule without `profile` applies to all profiles. For an inferred pattern, contribute its approved authored examples rather than recording an inference as a user-stated rule. Directions for one piece belong to that writing task, not a lasting rule.\n\nWhen profile details are needed for the user's request, call `view_writing_profile`. Use `list_writing_samples` when the supporting writing is needed. Use profile actions to complete authorized writing or personalization workflows. Describe a persistent settings change before calling its tool. The host's destructive-action confirmation is sufficient; do not add another confirmation. Profile tools support writing workflows; they do not themselves generate the requested draft.\n\nPreserve supplied facts and protected wording unless the user requests changes. Keep the source narrator unless the user requests a change. Ask only for necessary facts, required permission, or unresolved ambiguity. Never invent facts, positions, experiences, or opinions. Writing tools return text; they do not send messages or publish content. Respect the user's tool choice and the host's permissions.\n\nHost context boundary: use the current request and data already stored in Idiolect AI. For another source, follow the host's rules and obtain the required approval before access. Show the exact excerpts before sending them. Send only approved, task-relevant material. If the host's source rules are unknown, use only the current request and stored Idiolect AI data. The connector never directs another plugin or connector to gather material.",
   "tools": [
     {
       "name": "write",
       "title": "Write",
-      "description": "Use this when the user asks for new writing in their Writing Profile or their own style.",
+      "description": "Use this when the user needs new writing from a request, facts, notes, or an outline. It returns a draft for the requested purpose, audience, and format. A Writing Profile personalizes the draft when available. If the tool returns a setup step, follow that step.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -36,6 +36,12 @@
             "minLength": 1,
             "maxLength": 8000,
             "description": "The user's exact directions about tone, length, structure, or exclusions. Omit when none were given. Put content in `request` and a named output form in `format`."
+          },
+          "language": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "The language for the finished writing, in plain words (for example 'French'). Set it only when the user asked for a specific language. Omit it to follow the request's language, or the source text's language for a rewrite."
           },
           "effects": {
             "type": "array",
@@ -1184,7 +1190,7 @@
     {
       "name": "rewrite",
       "title": "Rewrite",
-      "description": "Use this when the user gives text and asks for it in their Writing Profile.",
+      "description": "Use this when the user wants existing text changed, from a small correction to a complete rewrite. Changes include grammar, clarity, length, structure, tone, style, audience, and format. It can shorten, summarize, expand, simplify, paraphrase, or repurpose the supplied text. Requests include 'make this sound like me' and 'make this less AI-written'. A Writing Profile personalizes the result when available. Preserve supplied facts and protected wording unless the user requests changes.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1214,6 +1220,12 @@
             "minLength": 1,
             "maxLength": 8000,
             "description": "The user's exact change request. Keep it separate from the prose. Use `changeScope` for the amount of change. Do not replace their words with an effect label."
+          },
+          "language": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "The language for the finished writing, in plain words (for example 'French'). Set it only when the user asked for a specific language. Omit it to follow the request's language, or the source text's language for a rewrite."
           },
           "changeScope": {
             "type": "string",
@@ -2371,7 +2383,7 @@
     {
       "name": "refine_writing",
       "title": "Refine writing",
-      "description": "Use this when the user asks to change a piece Idiolect AI returned, asks to restyle it with a ready-made template, or reports what they did with it.",
+      "description": "Use this when the user requests changes to an identified piece that Idiolect AI returned. It continues the writing task through further revisions or a selected template. It can also record the user's reported outcome or exact final wording. Use the returned writing reference.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2641,7 +2653,7 @@
     {
       "name": "view_writing_profile",
       "title": "View writing profile",
-      "description": "Use this when the user asks about their Writing Profiles. Without `profile` it lists all profiles and shows the current one in full.",
+      "description": "Use this when profile details are needed to answer the user or resolve a writing or personalization task. Without `profile`, it lists all profiles and shows the current one in full.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2979,7 +2991,7 @@
     {
       "name": "list_writing_samples",
       "title": "List writing samples",
-      "description": "Use this when the user asks which writing a profile was built from.",
+      "description": "Use this when the writing behind a profile is needed for inspection or an authorized personalization workflow.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -3321,7 +3333,7 @@
     {
       "name": "create_writing_profile",
       "title": "Create writing profile",
-      "description": "Use this when the user wants a new Writing Profile from writing or answers they approved. It never changes an existing profile.",
+      "description": "Use this when personalization requires a new Writing Profile and approved writing samples or answers are available. It can continue a writing task that is waiting for a profile. It never changes an existing profile.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -3747,7 +3759,7 @@
     {
       "name": "add_writing_samples",
       "title": "Add writing samples",
-      "description": "Use this when the user wants more of their own writing added to a profile.",
+      "description": "Use this when additional approved examples of the user's writing are available for an existing Writing Profile. This includes examples supplied during writing and revision workflows.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -5172,7 +5184,7 @@
     {
       "name": "add_writing_rule",
       "title": "Add writing rule",
-      "description": "Use this when the user states a lasting writing rule in their own words.",
+      "description": "Use this when the user states a lasting writing preference, including during a writing task. Save the preference in their words with its stated scope.",
       "inputSchema": {
         "not": {
           "required": [

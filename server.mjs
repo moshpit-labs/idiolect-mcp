@@ -1061,6 +1061,12 @@ const accountToolDefinitions = [
           description:
                         "The user's actual change request — length, tone, audience, what to cut or keep, make it sound less AI-written, roughen it up, or make it sound like I am talking. Kept separate from `text`: put the request here, never inside the prose to rewrite. `changeScope` carries magnitude; `instructions` carries the requested change.",
         },
+        language: {
+          type: "string",
+          minLength: 1,
+          maxLength: 100,
+          description: "The language for the finished writing, in plain words (for example 'French'). Set it only when the user asked for a specific language. Omit it to follow the request's language, or the source text's language for a rewrite.",
+        },
         changeScope: CHANGE_SCOPE_SCHEMA,
         effects: EFFECTS_SCHEMA,
         sourceAuthor: SOURCE_AUTHOR_SCHEMA,
@@ -1100,6 +1106,12 @@ const accountToolDefinitions = [
           maxLength: 8000,
           description:
             "`instructions` is the user's actual direction: how to write the piece — tone, length, format, structure, and what to leave out. Optional; omit it when the user gave none. Never paste directions into `brief`, which carries the material, and never put material here. A named output shape goes in `format`.",
+        },
+        language: {
+          type: "string",
+          minLength: 1,
+          maxLength: 100,
+          description: "The language for the finished writing, in plain words (for example 'French'). Set it only when the user asked for a specific language. Omit it to follow the request's language, or the source text's language for a rewrite.",
         },
         effects: EFFECTS_SCHEMA,
         briefAuthor: BRIEF_AUTHOR_SCHEMA,
@@ -1625,6 +1637,9 @@ export async function handleToolRequest(req) {
       const instructions = typeof args.instructions === "string" && args.instructions.trim()
         ? args.instructions.trim()
         : undefined;
+      const language = typeof args.language === "string" && args.language.trim()
+        ? args.language.trim()
+        : undefined;
       const invalidChangeRequest = changeRequestError(args, "rewrite_in_voice");
       if (invalidChangeRequest) return invalidChangeRequest;
       const invalidSourceAuthor = authorProvenanceError(args, "rewrite_in_voice", "sourceAuthor");
@@ -1655,6 +1670,7 @@ export async function handleToolRequest(req) {
             ...(profileId !== undefined ? { voice: profileId } : {}),
             ...(targetRegister ? { targetRegister } : {}),
             ...(instructions ? { instructions } : {}),
+            ...(language ? { language } : {}),
             ...(changeScope !== undefined ? { changeScope } : {}),
             ...(effects !== undefined ? { effects } : {}),
             ...(sourceAuthor !== undefined ? { sourceAuthor } : {}),
@@ -1685,6 +1701,9 @@ export async function handleToolRequest(req) {
       const format = typeof args.format === "string" ? args.format : undefined;
       const instructions = typeof args.instructions === "string" && args.instructions.trim()
         ? args.instructions.trim()
+        : undefined;
+      const language = typeof args.language === "string" && args.language.trim()
+        ? args.language.trim()
         : undefined;
       const formats = new Set(["linkedin", "x_post", "x_thread", "newsletter", "generic"]);
       const invalidChangeRequest = changeRequestError(args, "draft_in_voice");
@@ -1717,6 +1736,7 @@ export async function handleToolRequest(req) {
             ...(profileId !== undefined ? { voice: profileId } : {}),
             ...(format ? { format } : {}),
             ...(instructions ? { instructions } : {}),
+            ...(language ? { language } : {}),
             ...(changeScope !== undefined ? { changeScope } : {}),
             ...(effects !== undefined ? { effects } : {}),
             ...(briefAuthor !== undefined ? { briefAuthor } : {}),

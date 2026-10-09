@@ -1,7 +1,8 @@
 # idiolect-mcp
 
-MCP server that makes any MCP-compatible AI (Claude Desktop, Claude Code, …)
-write in **your** voice, using your [Idiolect AI](https://idiolect.app) Voice Card.
+Idiolect AI creates and revises writing through MCP-compatible AI tools. A Writing Profile
+personalizes the result using writing samples, stated preferences, and learned patterns.
+Writing requests do not need a brand mention or an existing profile.
 
 ## Setup
 
@@ -46,8 +47,8 @@ Remote OAuth and account-mode stdio advertise the same user-facing tools.
 Setup state, evidence approval, retries, and idempotency stay inside the server;
 clients receive one `next` action and never coordinate workflow versions or locks.
 
-- **`write`** — writes new prose in the user's Writing Profile or own style.
-- **`rewrite`** — rewrites supplied prose in the user's Writing Profile.
+- **`write`** — drafts writing from requests, facts, notes, or outlines.
+- **`rewrite`** — corrects, summarizes, expands, simplifies, paraphrases, or repurposes existing text.
 - **`refine_writing`** — changes returned writing, applies a template, or records its outcome.
 - **`view_writing_profile`** — lists Writing Profiles and shows the selected or current profile.
 - **`list_writing_samples`** — lists the writing behind one profile.
@@ -60,6 +61,11 @@ clients receive one `next` action and never coordinate workflow versions or lock
 - **`remove_writing_rule`** — stops following one stored rule.
 - **`remove_writing_sample`** — revokes one ready or waiting sample.
 - **`delete_writing_profile`** — deletes a selected profile.
+
+Profile creation, approved samples, and lasting preferences can be part of writing and
+revision workflows. They do not require a separate profile-management request. Inferred
+patterns can contribute approved authored examples; they must not become user-stated rules.
+See [the MCP content standard](../docs/MCP-CONTENT-STANDARD.md) for writing and review rules.
 
 Cached account-mode tool names remain callable but are not advertised. Slug mode keeps its
 legacy local-samples catalogue; locally configured samples are used only for stateless scoring
