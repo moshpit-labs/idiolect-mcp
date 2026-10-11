@@ -81,5 +81,16 @@ export function publicMcpState(state, message, next, details = {}) {
   delete safeDetails.state;
   delete safeDetails.message;
   delete safeDetails.next;
-  return { state, message, ...safeDetails, next: { action: next.action, tool: next.tool } };
+  return {
+    state,
+    message,
+    ...safeDetails,
+    next: {
+      action: next.action,
+      tool: next.tool,
+      ...(next.action === "retry" && typeof next.retryAfterSeconds === "number"
+        ? { retryAfterSeconds: next.retryAfterSeconds }
+        : {}),
+    },
+  };
 }

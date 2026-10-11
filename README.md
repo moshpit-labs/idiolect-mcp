@@ -50,29 +50,26 @@ clients receive one `next` action and never coordinate workflow versions or lock
 - **`write`** — drafts writing from requests, facts, notes, or outlines.
 - **`rewrite`** — corrects, summarizes, expands, simplifies, paraphrases, or repurposes existing text.
 - **`refine_writing`** — changes returned writing, applies a template, or records its outcome.
-- **`view_writing_profile`** — lists Writing Profiles and shows the selected or current profile.
-- **`list_writing_samples`** — lists the writing behind one profile.
-- **`create_writing_profile`** — creates a new profile without changing another.
-- **`add_writing_samples`** — adds approved writing to a selected or current profile.
-- **`rename_writing_profile`** — renames a profile.
-- **`set_current_writing_profile`** — makes a profile current.
-- **`set_default_writing_template`** — sets or clears the default template when no profile exists.
-- **`add_writing_rule`** — stores a lasting rule in the user's words.
-- **`remove_writing_rule`** — stops following one stored rule.
-- **`remove_writing_sample`** — revokes one ready or waiting sample.
-- **`delete_writing_profile`** — deletes a selected profile.
+- **`view_writing_profile`** — read-only: lists Writing Profiles, shows one, and with `samples` lists its writing.
+- **`manage_profile`** — every change, by `action`: `create_profile`, `add_samples`, `remove_sample`,
+  `add_rule`, `remove_rule`, `rename_profile`, `set_current_profile`, `set_default_template`.
+
+Deleting a whole profile is done on the website. The former per-action profile tools
+(`add_writing_rule`, `delete_writing_profile` and the rest) still work and answer as
+`manage_profile` with that action, but are not advertised.
 
 Profile creation, approved samples, and lasting preferences can be part of writing and
 revision workflows. They do not require a separate profile-management request. Inferred
 patterns can contribute approved authored examples; they must not become user-stated rules.
-See [the MCP content standard](../docs/MCP-CONTENT-STANDARD.md) for writing and review rules.
+See [the MCP playbook](../docs/MCP-PLAYBOOK.md) for writing and review rules.
 
-Cached account-mode tool names remain callable but are not advertised. Slug mode keeps its
+Cached account-mode tool names that hosts still call forward to the current tool and are not
+advertised; a retired name answers with the current tool to use instead. Slug mode keeps its
 legacy local-samples catalogue; locally configured samples are used only for stateless scoring
 and are not stored.
 
 When an account has no Writing Profile, `write` and `rewrite` return the setup choices.
-`create_writing_profile` returns exact missing blocks and characters when evidence is thin.
+`manage_profile` with `create_profile` returns exact missing blocks and characters when evidence is thin.
 Feedback can be accepted, corrected-and-accepted, or rejected only against a
 succeeded server-issued output.
 Correction prose is retained only when the applicable consent gates permit it and
@@ -86,19 +83,14 @@ approved. Creating a profile and
 succeeding at a first generation are not activation. Canonical native activation
 occurs only after accepted or corrected-and-accepted feedback.
 
-## Credits and retries
+## Words and retries
 
-Generation is free during beta, and completed drafts and rewrites no longer carry a credit
-state. The account's balance and access are shown at idiolect.app/settings. Future credits-mode
-states cover available, low, zero, unlimited, and temporarily unavailable balances without
-changing the tool names.
+Each account has a monthly word allowance from its plan, plus any extra words it has bought.
+Usage and the plan are shown at idiolect.app/settings/plan.
 
-A known zero balance returns a structured `purchase_required` tool error with the
-stable first-party credit-management path. An accounting outage returns
-`accounting_unavailable` without a purchase suggestion. Both denials happen before
-generation or charging, so their retry object is explicitly scoped to
-`pre_generation`. Successful generation does not yet promise replay after a lost
-response, and paid enforcement remains disabled.
+When an account has no words left, the drafting and rewriting tools return a tool error
+before any generation starts. The error text says how many words were used, when the
+allowance resets, and where to see the plan. Nothing is charged for a refused call.
 
 Internal generation coordination happens before provider work. A stale internal
 state is refreshed before the client receives one public retry action. If durable

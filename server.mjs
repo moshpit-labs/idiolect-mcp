@@ -47,7 +47,16 @@ export const accountRuntimeCompatibilityToolNames = Object.freeze([
   "feedback",
   "refine",
   "profile",
-  "manage_profile",
+  "list_writing_samples",
+  "create_writing_profile",
+  "add_writing_samples",
+  "rename_writing_profile",
+  "set_current_writing_profile",
+  "set_default_writing_template",
+  "add_writing_rule",
+  "remove_writing_rule",
+  "remove_writing_sample",
+  "delete_writing_profile",
   "learn_writing_style",
   "get_my_voice",
   "create_my_voice",
@@ -142,195 +151,14 @@ export function formatLegacyScoreVoiceResult(result) {
   return `${lines}\n\n(${provenance} — higher = reads more like you; not a forensic identity claim.)`;
 }
 
-const CREDIT_STATES = new Set([
-  "free_beta",
-  "balance_available",
-  "low_balance",
-  "zero_balance",
-  "legacy_unlimited",
-  "accounting_unavailable",
-]);
-const CREDIT_MODES = new Set(["free", "credits"]);
-
 function plainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function safeManageUrl(value) {
-  if (value === null) return null;
-  if (typeof value !== "string") return undefined;
-  try {
-    const parsed = new URL(value);
-    const accountOrigin = new URL(ACCOUNT_BASE).origin;
-    const firstParty = parsed.hostname === "idiolect.app" || parsed.hostname.endsWith(".idiolect.app");
-    if (
-      !["https:", "http:"].includes(parsed.protocol)
-      || (parsed.origin !== accountOrigin && !firstParty)
-      || parsed.pathname !== "/settings"
-      || parsed.username
-      || parsed.password
-      || parsed.search !== "?section=credits"
-      || parsed.hash
-    ) return undefined;
-    return `${parsed.origin}/settings?section=credits`;
-  } catch {
-    return undefined;
-  }
-}
-
-function creditMessage(credits) {
-  const { state, balance, charged, manageUrl, mode } = credits;
-  if (state === "free_beta") {
-    return charged === 0
-      ? "Free during beta. No credits are being used."
-      : "Completed free during beta. No credit was used.";
-  }
-  if (state === "legacy_unlimited") return "Unlimited generation access is active. Credits are not used.";
-  if (state === "accounting_unavailable") {
-    return mode === "free"
-      ? "Free during beta. The credit balance is temporarily unavailable; generation remains available."
-      : "The credit balance is temporarily unavailable. Generation is paused; no credit was used.";
-  }
-  if (state === "zero_balance") {
-    return charged === 1
-      ? "This request completed with the last credit."
-      : `The credit balance is 0. A draft or rewrite needs 1 credit. Credit management: ${manageUrl}.`;
-  }
-  if (charged === 1) return `1 credit used. ${balance} ${balance === 1 ? "remains" : "remain"}.`;
-  if (state === "low_balance") return `${balance} credit${balance === 1 ? "" : "s"} remain. Credit management: ${manageUrl}.`;
-  return `${balance} credits available. Each draft or rewrite uses 1 credit.`;
-}
-
-function validCreditInvariant(credits) {
-  const {
-    state,
-    mode,
-    balance,
-    balancePreview,
-    unitCost,
-    charged,
-    unlimited,
-    accountingAvailable,
-    generationAvailable,
-    purchaseRequired,
-    manageUrl,
-  } = credits;
-  if (state === "free_beta") {
-    return mode === "free" && balance !== null && balancePreview && unitCost === 0 && charged === 0
-      && !unlimited && accountingAvailable && generationAvailable && !purchaseRequired && manageUrl === null;
-  }
-  if (state === "legacy_unlimited") {
-    return mode === "credits" && balance === null && !balancePreview && unitCost === 0 && charged === 0
-      && unlimited && accountingAvailable && generationAvailable && !purchaseRequired && manageUrl === null;
-  }
-  if (state === "accounting_unavailable") {
-    return balance === null && !balancePreview && charged === 0 && !unlimited && !accountingAvailable
-      && !purchaseRequired && manageUrl === null && unitCost === (mode === "free" ? 0 : 1)
-      && generationAvailable === (mode === "free");
-  }
-  if (mode !== "credits" || balance === null || balancePreview || unitCost !== 1 || unlimited || !accountingAvailable) {
-    return false;
-  }
-  if (state === "balance_available") {
-    return balance > 5 && generationAvailable && !purchaseRequired && manageUrl === null;
-  }
-  if (state === "low_balance") {
-    return balance >= 1 && balance <= 5 && generationAvailable && !purchaseRequired && manageUrl !== null;
-  }
-  return state === "zero_balance" && balance === 0 && !generationAvailable && purchaseRequired && manageUrl !== null;
-}
-
-/**
- * Rebuild the public credit envelope from known primitives only. Never copy an
- * upstream message or unknown field into an MCP response.
- */
-export function safeCreditPresentation(value) {
-  if (!plainObject(value)) return null;
-  const balance = value.balance;
-  const manageUrl = safeManageUrl(value.manageUrl);
-  if (
-    !CREDIT_STATES.has(value.state)
-    || !CREDIT_MODES.has(value.mode)
-    || !(balance === null || (Number.isSafeInteger(balance) && balance >= 0))
-    || typeof value.balancePreview !== "boolean"
-    || ![0, 1].includes(value.unitCost)
-    || ![0, 1].includes(value.charged)
-    || typeof value.unlimited !== "boolean"
-    || typeof value.accountingAvailable !== "boolean"
-    || typeof value.generationAvailable !== "boolean"
-    || typeof value.purchaseRequired !== "boolean"
-    || manageUrl === undefined
-    || typeof value.replayed !== "boolean"
-  ) return null;
-
-  const credits = {
-    state: value.state,
-    mode: value.mode,
-    balance,
-    balancePreview: value.balancePreview,
-    unitCost: value.unitCost,
-    charged: value.charged,
-    unlimited: value.unlimited,
-    accountingAvailable: value.accountingAvailable,
-    generationAvailable: value.generationAvailable,
-    purchaseRequired: value.purchaseRequired,
-    manageUrl,
-    replayed: value.replayed,
-  };
-  if (!validCreditInvariant(credits)) return null;
-  return { ...credits, message: creditMessage(credits) };
-}
-
-function safeCreditToolErrorPayload(value) {
-  if (!plainObject(value) || !plainObject(value.error) || !plainObject(value.retry)) return null;
-  const credits = safeCreditPresentation(value.credits);
-  if (!credits) return null;
-  const purchaseRequired = value.status === "purchase_required"
-    && value.error.code === "insufficient_credits"
-    && credits.state === "zero_balance"
-    && credits.mode === "credits"
-    && credits.balance === 0
-    && credits.charged === 0
-    && value.retry.after === "balance_updated";
-  const accountingUnavailable = value.status === "accounting_unavailable"
-    && value.error.code === "credit_accounting_unavailable"
-    && credits.state === "accounting_unavailable"
-    && credits.mode === "credits"
-    && credits.charged === 0
-    && value.retry.after === "accounting_available";
-  if (
-    (!purchaseRequired && !accountingUnavailable)
-    || value.error.retryable !== true
-    || value.retry.safe !== true
-    || value.retry.idempotent !== true
-    || value.retry.scope !== "pre_generation"
-  ) return null;
-
-  const message = purchaseRequired
-    ? `This request needs 1 credit; the balance is 0. Nothing was charged. Credit management: ${credits.manageUrl}. The same request remains safe to retry after the balance changes.`
-    : "The credit balance is temporarily unavailable. No generation started and no credit was used. The same request remains safe to retry after accounting recovers.";
-  return {
-    status: value.status,
-    message,
-    error: { code: value.error.code, retryable: true },
-    credits: { ...credits, message },
-    retry: {
-      safe: true,
-      idempotent: true,
-      scope: "pre_generation",
-      after: value.retry.after,
-    },
-  };
 }
 
 async function accountRequestError(res, toolName) {
   if ((res.headers.get("content-type") || "").includes("application/json")) {
     try {
       const payload = await res.json();
-      const creditContent = safeCreditToolErrorPayload(payload);
-      if (creditContent) {
-        return new AccountRequestError(creditContent.message, res.status, creditContent);
-      }
       const creationContent = toolName === "create_my_voice" ? safeCreationFailurePayload(payload) : null;
       if (creationContent) {
         return new AccountRequestError(creationContent.message, res.status, creationContent);
@@ -608,72 +436,6 @@ const PROVENANCE_OUTPUT_PROPERTIES = {
   voice: SELECTED_VOICE_SCHEMA,
   evidence: EVIDENCE_OUTPUT_SCHEMA,
 };
-const CREDIT_OUTPUT_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  properties: {
-    state: {
-      type: "string",
-      enum: ["free_beta", "balance_available", "low_balance", "zero_balance", "legacy_unlimited", "accounting_unavailable"],
-    },
-    mode: { type: "string", enum: ["free", "credits"] },
-    balance: { type: ["integer", "null"], minimum: 0 },
-    balancePreview: { type: "boolean" },
-    unitCost: { type: "number", enum: [0, 1] },
-    charged: { type: "number", enum: [0, 1] },
-    unlimited: { type: "boolean" },
-    accountingAvailable: { type: "boolean" },
-    generationAvailable: { type: "boolean" },
-    purchaseRequired: { type: "boolean" },
-    manageUrl: { type: ["string", "null"] },
-    replayed: { type: "boolean" },
-    message: { type: "string" },
-  },
-  required: [
-    "state",
-    "mode",
-    "balance",
-    "balancePreview",
-    "unitCost",
-    "charged",
-    "unlimited",
-    "accountingAvailable",
-    "generationAvailable",
-    "purchaseRequired",
-    "manageUrl",
-    "replayed",
-    "message",
-  ],
-};
-const CREDIT_ERROR_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  properties: {
-    code: { type: "string", enum: ["insufficient_credits", "credit_accounting_unavailable"] },
-    retryable: { type: "boolean", enum: [true] },
-  },
-  required: ["code", "retryable"],
-};
-const CREDIT_RETRY_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  properties: {
-    safe: { type: "boolean", enum: [true] },
-    idempotent: { type: "boolean", enum: [true] },
-    scope: { type: "string", enum: ["pre_generation"] },
-    after: { type: "string", enum: ["balance_updated", "accounting_available"] },
-  },
-  required: ["safe", "idempotent", "scope", "after"],
-};
-// Carried by a credit-gate refusal only; a completed draft or rewrite no longer reports
-// credits (13 constants in free mode) or a status beside `state` (IDI-381).
-const CREDIT_GENERATION_OUTPUT_PROPERTIES = {
-  status: { type: "string", enum: ["purchase_required", "accounting_unavailable"] },
-  message: { type: "string" },
-  credits: CREDIT_OUTPUT_SCHEMA,
-  error: CREDIT_ERROR_SCHEMA,
-  retry: CREDIT_RETRY_SCHEMA,
-};
 const NEXT_ACTION_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -735,7 +497,6 @@ const REWRITE_OUTPUT_SCHEMA = {
     reason: { type: ["string", "null"], description: "Present only when scoring is enabled and the engine did not measure; says why." },
     voice: SELECTED_VOICE_SCHEMA,
     evidence: EVIDENCE_OUTPUT_SCHEMA,
-    ...CREDIT_GENERATION_OUTPUT_PROPERTIES,
     ...CAVEATS_OUTPUT_PROPERTY,
   },
 };
@@ -747,7 +508,6 @@ const DRAFT_OUTPUT_SCHEMA = {
     reason: { type: ["string", "null"], description: "Present only when scoring is enabled and the engine did not measure; says why." },
     voice: SELECTED_VOICE_SCHEMA,
     evidence: EVIDENCE_OUTPUT_SCHEMA,
-    ...CREDIT_GENERATION_OUTPUT_PROPERTIES,
     ...CAVEATS_OUTPUT_PROPERTY,
   },
 };
@@ -1011,20 +771,6 @@ const accountToolDefinitions = [
       "profile_not_found", "replacement_required", "invalid_replacement",
     ]),
     annotations: { readOnlyHint: false, openWorldHint: false, destructiveHint: true, title: "Delete Writing Profile" },
-  },
-  {
-    name: "get_credit_status",
-    description:
-      "Check the account's current generation-credit state. During the free beta, this confirms that no credits are being used.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    outputSchema: CREDIT_OUTPUT_SCHEMA,
-    annotations: {
-      readOnlyHint: true,
-      idempotentHint: true,
-      openWorldHint: false,
-      destructiveHint: false,
-      title: "Check Credit Status",
-    },
   },
   {
     name: "score_voice",
@@ -1480,18 +1226,7 @@ export async function handleAccountTool(name, args = {}) {
     }
   }
   if (name === "get_credit_status") {
-    try {
-      const credits = safeCreditPresentation(await accountRequest("/api/v1/credits", {
-        toolName: "get_credit_status",
-      }));
-      if (!credits) return toolError("get_credit_status: Idiolect AI returned an invalid credit status.");
-      return {
-        content: [{ type: "text", text: credits.message }],
-        structuredContent: credits,
-      };
-    } catch (error) {
-      return accountToolError(error);
-    }
+    return toolError("This tool is no longer available. Refresh the Idiolect AI tool catalogue.");
   }
 
   if (name === "get_my_voice") {
