@@ -530,7 +530,7 @@
     {
       "name": "refine_writing",
       "title": "Refine writing",
-      "description": "Changes writing Idiolect AI returned, such as 'make it shorter and warmer'. The user does not need to name Idiolect AI again. It covers follow-ups on writing from `write`, `rewrite`, or `refine_writing`. The `refine_writing` tool revises returned writing, applies a ready-made template, or records its use. Send the latest `writingJobVersionId`, or `outputReference` when no version was returned, but not both. Send one of `change`, `templateId`, or `outcome`. The `finalText` field may come alone or with `outcome`. When the user reports use or the host observes completed use, send `outcome` with its `decisionSource`. When the final wording is known, send it in `finalText`. Set `editAuthor` to whoever edited it.",
+      "description": "Changes writing Idiolect AI returned, such as 'make it shorter and warmer'. The user does not need to name Idiolect AI again. It covers follow-ups on writing from `write`, `rewrite`, or `refine_writing`. The `refine_writing` tool revises returned writing, applies a ready-made template, or records its use. Send the latest `writingJobVersionId`, or `outputReference` when no version was returned, but not both. Send one of `change`, `templateId`, or `outcome`. If the change sets a new form, language or fact of the situation, send it in `format`, `language` or `situation`. The `finalText` field may come alone or with `outcome`. When the user reports use or the host observes completed use, send `outcome` with its `decisionSource`. When the final wording is known, send it in `finalText`. Set `editAuthor` to whoever edited it.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -549,6 +549,67 @@
             "minLength": 1,
             "maxLength": 8000,
             "description": "What the user wants changed in this version, in their words. Omit it when sending `outcome`."
+          },
+          "format": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000,
+            "description": "Send only when this change gives the writing a new form, such as an email that becomes a Slack message. The value is the new form. Omit it to keep the current form."
+          },
+          "language": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Send only when this change asks for another language. The value is that language. Omit it to keep the language of the writing."
+          },
+          "situation": {
+            "type": "object",
+            "properties": {
+              "channel": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8000,
+                "description": "Known delivery channel, such as email, Slack, document or social post."
+              },
+              "audience": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8000,
+                "description": "Known reader or audience. If the request does not establish one, omit `audience`."
+              },
+              "relationship": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8000,
+                "description": "Known relationship to the reader, such as teammate, customer, friend or public audience."
+              },
+              "purpose": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8000,
+                "description": "Known purpose of the writing, such as inform, request, persuade, thank or decline."
+              },
+              "register": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8000,
+                "description": "The level of formality the user established."
+              },
+              "format": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8000,
+                "description": "Known writing form when it is more specific than the tool's format field."
+              },
+              "explicitConstraints": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8000,
+                "description": "Other constraints the user supplied. Never infer or add constraints here."
+              }
+            },
+            "additionalProperties": false,
+            "description": "Send only the facts of the situation that this change replaces, such as a new reader or a new constraint. Facts that you omit keep their earlier values."
           },
           "outcome": {
             "type": "string",
