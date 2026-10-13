@@ -76,65 +76,6 @@ See the [OpenCode MCP guide](https://opencode.ai/docs/mcp-servers/).
 These examples configure the connection. A connected catalog does not prove a complete
 writing workflow in every client. Your client's model access and tool approvals also apply.
 
-### Optional OAuth adapter for Cursor and OpenCode
-
-If native MCP login reports a connection but tools return Unauthorized, discovery may have
-completed without account sign-in. You can use the third-party
-[`mcp-remote`](https://github.com/punkpeye/mcp-remote) OAuth adapter below. It requires Node.js
-and npm, runs locally, and connects to the same hosted service. Keep your native configuration
-or replace its Idiolect AI entry with the adapter; do not enable both as duplicate connections.
-
-For Cursor, use this `.cursor/mcp.json` entry:
-
-```json
-{
-  "mcpServers": {
-    "idiolect": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "mcp-remote@0.14.3",
-        "https://idiolect.app/api/mcp",
-        "--transport",
-        "http-only"
-      ]
-    }
-  }
-}
-```
-
-For OpenCode, use this `opencode.json` entry:
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "mcp": {
-    "idiolect": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "mcp-remote@0.14.3",
-        "https://idiolect.app/api/mcp",
-        "--transport",
-        "http-only"
-      ],
-      "enabled": true
-    }
-  }
-}
-```
-
-Start the connection in your client and complete the adapter's browser sign-in with the same
-Idiolect AI account that owns your Writing Profile. Keep normal tool approvals enabled.
-For a new sign-in that needs account re-verification, you can append `"--authorize-param"`,
-`"prompt=login"` to the adapter arguments. This is optional; do not force re-authentication
-for routine use. Existing cached credentials are reused by the adapter.
-
-The adapter keeps OAuth tokens locally and adds a third-party dependency. You can replace it
-with the native connection when your client's OAuth flow works. This fallback does not establish
-native OAuth support or a complete writing workflow in every client.
-
 ## Writing tools
 
 Hosted OAuth and API-key account mode advertise these five tools:
