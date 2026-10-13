@@ -1,15 +1,108 @@
-# idiolect-mcp
+# Idiolect AI MCP server
 
-Idiolect AI creates and revises writing through MCP-compatible AI tools. A Writing Profile
-personalizes the result using writing samples, stated preferences, and learned patterns.
-Writing requests do not need a brand mention or an existing profile.
+Write and revise emails, messages, posts, replies, and docs in your voice with your portable
+Writing Profile. Idiolect AI creates new writing directly from your request and revises text
+you supply. You do not need to fetch a profile before writing.
 
-## Setup
+## Connect with hosted OAuth
 
-### Account mode
+Use **`https://idiolect.app/api/mcp`** in a client that supports remote HTTP MCP and OAuth.
+Your client opens browser sign-in and manages the connection. No npm installation, API key,
+or client secret is needed for this path. Review the consent screen and your client's tool
+permissions. Avoid adding a second connection if Idiolect AI is already connected.
 
-For account-resolved Writing Profile creation, loading, scoring, rewrite, and draft tools,
-set `IDIOLECT_API_KEY`:
+### Codex
+
+```sh
+codex mcp add idiolect --url https://idiolect.app/api/mcp
+codex mcp login idiolect
+```
+
+See the [Codex MCP guide](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
+
+### Cursor
+
+Add this to `.cursor/mcp.json`, then complete OAuth sign-in in Cursor's MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "idiolect": {
+      "url": "https://idiolect.app/api/mcp"
+    }
+  }
+}
+```
+
+See the [Cursor MCP guide](https://cursor.com/docs/mcp).
+
+### VS Code with GitHub Copilot
+
+Add this to `.vscode/mcp.json`. Start the server from the MCP controls and complete sign-in:
+
+```json
+{
+  "servers": {
+    "idiolect": {
+      "type": "http",
+      "url": "https://idiolect.app/api/mcp"
+    }
+  }
+}
+```
+
+See the [VS Code MCP configuration reference](https://code.visualstudio.com/docs/agents/reference/mcp-configuration).
+
+### OpenCode
+
+Add this to `opencode.json` in your project:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "idiolect": {
+      "type": "remote",
+      "url": "https://idiolect.app/api/mcp",
+      "enabled": true
+    }
+  }
+}
+```
+
+Then run `opencode mcp auth idiolect` and check the connection with `opencode mcp list`.
+See the [OpenCode MCP guide](https://opencode.ai/docs/mcp-servers/).
+
+These examples configure the connection. A connected catalog does not prove a complete
+writing workflow in every client. Your client's model access and tool approvals also apply.
+
+## Writing tools
+
+Hosted OAuth and API-key account mode advertise these five tools:
+
+- `write` creates writing from your request, facts, or notes.
+- `rewrite` changes supplied prose. Your directions stay separate in `instructions`.
+- `refine_writing` changes writing Idiolect AI returned, using its latest writing reference.
+- `view_writing_profile` reads your current Writing Profile, rules, or samples.
+- `manage_profile` creates or changes Writing Profiles and stated rules.
+
+If you have no Writing Profile, the service offers setup from your own writing or answers.
+You can skip setup and complete that request without a profile. Follow the returned setup
+choices and reference; do not restart the held request. Whole-profile deletion is on the website.
+
+Use your own authored writing as profile evidence. Fetch writing from another source only
+when you ask, and send only the exact pieces you approve. Do not save AI or third-party prose
+as your writing, or turn inferred patterns into your stated rules.
+
+The service returns finished writing. Preserve its wording when presenting it, and use
+`refine_writing` for follow-up edits. Ordinary writing does not report a Voice Match score.
+Sending or publishing the result is a separate action in your client.
+
+## npm and API-key account mode
+
+The `idiolect-mcp` npm package is a local **stdio** bridge to the hosted service. Use it when
+your client needs a local process instead of hosted OAuth. It requires Node.js 18 or newer
+and an Idiolect AI API key for account mode; it does not perform browser OAuth itself.
 
 ```json
 {
@@ -17,87 +110,36 @@ set `IDIOLECT_API_KEY`:
     "idiolect": {
       "command": "npx",
       "args": ["-y", "idiolect-mcp"],
-      "env": { "IDIOLECT_API_KEY": "idiolect_..." }
+      "env": {
+        "IDIOLECT_API_KEY": "<your-api-key>"
+      }
     }
   }
 }
 ```
 
-### Slug mode
+Replace the placeholder through your client's private credential configuration. Never commit
+an actual key. `IDIOLECT_BASE` changes the service URL for a self-hosted instance; its default
+is `https://idiolect.app`.
 
-1. Get your voice at **https://idiolect.app** — note the slug in your result URL
-   (`idiolect.app/v/<slug>`).
-2. Add to your MCP config:
+### Legacy slug mode
 
-```json
-{
-  "mcpServers": {
-    "idiolect": {
-      "command": "npx",
-      "args": ["-y", "idiolect-mcp"],
-      "env": { "IDIOLECT_SLUG": "your-slug" }
-    }
-  }
-}
-```
+Without an API key, the stdio package exposes its separate legacy catalog. `IDIOLECT_SLUG`
+selects a public Voice Card; it does not select an authenticated account's Writing Profile.
+Optional `IDIOLECT_SAMPLES_FILE` or `IDIOLECT_SAMPLES` supplies samples for stateless scoring.
+This compatibility path is distinct from the five account tools above. Prefer hosted OAuth
+for current writing and profile workflows.
 
-## Tools
+## Privacy, support, and maintenance
 
-Remote OAuth and account-mode stdio advertise the same user-facing tools.
-Setup state, evidence approval, retries, and idempotency stay inside the server;
-clients receive one `next` action and never coordinate workflow versions or locks.
+Writing requests and approved evidence go to the hosted service. Your client controls its
+OAuth tokens and tool permissions. Read the [privacy policy](https://idiolect.app/privacy)
+and [terms](https://idiolect.app/terms). For help, use [support](https://idiolect.app/support)
+or email [hello@idiolect.app](mailto:hello@idiolect.app).
 
-- **`write`** — drafts writing from requests, facts, notes, or outlines.
-- **`rewrite`** — corrects, summarizes, expands, simplifies, paraphrases, or repurposes existing text.
-- **`refine_writing`** — changes returned writing, applies a template, or records its outcome.
-- **`view_writing_profile`** — read-only: lists Writing Profiles, shows one, and with `samples` lists its writing.
-- **`manage_profile`** — every change, by `action`: `create_profile`, `add_samples`, `remove_sample`,
-  `add_rule`, `remove_rule`, `rename_profile`, `set_current_profile`, `set_default_template`.
-
-Deleting a whole profile is done on the website. The former per-action profile tools
-(`add_writing_rule`, `delete_writing_profile` and the rest) still work and answer as
-`manage_profile` with that action, but are not advertised.
-
-Profile creation, approved samples, and lasting preferences can be part of writing and
-revision workflows. They do not require a separate profile-management request. Inferred
-patterns can contribute approved authored examples; they must not become user-stated rules.
-See [the MCP playbook](../docs/MCP-PLAYBOOK.md) for writing and review rules.
-
-Cached account-mode tool names that hosts still call forward to the current tool and are not
-advertised; a retired name answers with the current tool to use instead. Slug mode keeps its
-legacy local-samples catalogue; locally configured samples are used only for stateless scoring
-and are not stored.
-
-When an account has no Writing Profile, `write` and `rewrite` return the setup choices.
-`manage_profile` with `create_profile` returns exact missing blocks and characters when evidence is thin.
-Feedback can be accepted, corrected-and-accepted, or rejected only against a
-succeeded server-issued output.
-Correction prose is retained only when the applicable consent gates permit it and
-within its existing expiry rule. An explicitly approved correction can be added as
-private V2 evidence; it never changes the current Writing Profile or silently activates
-V2. A stored Writing Profile is never described as provisional.
-
-The setup response includes neither an activation token nor a capability/setup URL.
-`create_writing_profile` runs only after explicit permission from evidence you supplied or
-approved. Creating a profile and
-succeeding at a first generation are not activation. Canonical native activation
-occurs only after accepted or corrected-and-accepted feedback.
-
-## Words and retries
-
-Each account has a monthly word allowance from its plan, plus any extra words it has bought.
-Usage and the plan are shown at idiolect.app/settings/plan.
-
-When an account has no words left, the drafting and rewriting tools return a tool error
-before any generation starts. The error text says how many words were used, when the
-allowance resets, and where to see the plan. Nothing is charged for a refused call.
-
-Internal generation coordination happens before provider work. A stale internal
-state is refreshed before the client receives one public retry action. If durable
-completion cannot be confirmed, prose is suppressed and the response uses plain
-language without exposing coordination receipts.
-
-Set `IDIOLECT_BASE` to point at a self-hosted instance (defaults to
-`https://idiolect.app`).
+The product repository's `mcp/README.md` is the source used by future exports of this package.
+The [MCP playbook](https://github.com/Moshpit-Labs/idiolect-ai/blob/main/docs/MCP-PLAYBOOK.md)
+defines its writing and review rules. Generated catalog files come from that repository's
+canonical contract and must not be edited by hand.
 
 MIT licensed.
