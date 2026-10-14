@@ -5,7 +5,7 @@ The publisher is Moshpit Labs; the plugin identifier is `idiolect-ai` and MCP se
 
 ## Install locally
 
-Antigravity uses its own manifest format. Install the host-specific directory; the repository-root manifest serves other hosts.
+Antigravity uses its own manifest format. Install the host-specific directory shown below.
 
 ```sh
 agy plugin install /absolute/path/to/idiolect-mcp/plugins/antigravity/idiolect-ai
