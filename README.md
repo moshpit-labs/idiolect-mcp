@@ -53,6 +53,11 @@ Add this to `.vscode/mcp.json`. Start the server from the MCP controls and compl
 
 See the [VS Code MCP configuration reference](https://code.visualstudio.com/docs/agents/reference/mcp-configuration).
 
+### Google Antigravity
+
+See the [Antigravity plugin guide](docs/ANTIGRAVITY.md) for the host-specific MCP-only package and local installation.
+Antigravity CLI 1.3.5 passed local plugin loading, explicit native OAuth authentication, writing and refinement on 15 October 2026.
+
 ### OpenCode
 
 Add this to `opencode.json` in your project:
