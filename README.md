@@ -90,9 +90,13 @@ If you have no Writing Profile, the service offers setup from your own writing o
 You can skip setup and complete that request without a profile. Follow the returned setup
 choices and reference; do not restart the held request. Whole-profile deletion is on the website.
 
-Use your own authored writing as profile evidence. Fetch writing from another source only
-when you ask, and send only the exact pieces you approve. Do not save AI or third-party prose
-as your writing, or turn inferred patterns into your stated rules.
+Use your own authored writing as profile evidence. Your host can fetch it when you ask.
+Review the retrieved pieces, then approve the exact pieces to send for your Writing Profile.
+When submitting evidence, the host sets `evidence.userApproved` to `true` only after that approval.
+It uses `evidence.source` `sent_writing` for messages you previously sent to others.
+It uses `current_request` for other material you supply or approve for the current request.
+These values follow the evidence contract; they do not identify the external storage service.
+Do not save AI or third-party prose as your writing, or turn inferred patterns into your stated rules.
 
 The service returns finished writing. Preserve its wording when presenting it, and use
 `refine_writing` for follow-up edits. Ordinary writing does not report a Voice Match score.
@@ -137,9 +141,9 @@ OAuth tokens and tool permissions. Read the [privacy policy](https://idiolect.ap
 and [terms](https://idiolect.app/terms). For help, use [support](https://idiolect.app/support)
 or email [hello@idiolect.app](mailto:hello@idiolect.app).
 
-The product repository's `mcp/README.md` is the source used by future exports of this package.
-The [MCP playbook](https://github.com/Moshpit-Labs/idiolect-ai/blob/main/docs/MCP-PLAYBOOK.md)
-defines its writing and review rules. Generated catalog files come from that repository's
-canonical contract and must not be edited by hand.
+For contributions, keep setup examples aligned with the writing tools and evidence rules above.
+Check that examples use supported fields and preserve user approval and the returned writing.
+Generated catalog files come from the product repository's canonical contract.
+Report catalog changes in an issue rather than editing generated files by hand.
 
 MIT licensed.
