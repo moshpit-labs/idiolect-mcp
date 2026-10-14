@@ -56,7 +56,8 @@ See the [VS Code MCP configuration reference](https://code.visualstudio.com/docs
 ### GitHub Copilot CLI
 
 See the [Copilot CLI plugin guide](docs/COPILOT.md) for the Agent Plugins 1.0 package and local installation.
-Native testing of this package is pending; this is separate from the VS Code setup above.
+Copilot CLI 1.0.97 passed local installation, explicit OAuth authentication, writing and refinement on 14 October 2026.
+See the guide for the tested scope; this is separate from the VS Code setup above.
 
 ### OpenCode
 

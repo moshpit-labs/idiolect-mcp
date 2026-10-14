@@ -15,8 +15,10 @@ copilot plugin list
 
 Copilot CLI caches installed plugins. Reinstall after local packaging changes.
 Avoid a duplicate connection if Idiolect AI is already configured.
-Native installation, OAuth, writing, and refinement for this plugin package remain untested.
-Schema validation alone does not prove those workflows.
+On 14 October 2026, Copilot CLI 1.0.97 passed local marketplace installation and explicit browser OAuth authentication.
+Writing and refinement each made one MCP call and presented the returned writing unchanged.
+Saved ownership, the selected test profile, and refinement parent linkage were verified.
+Anonymous discovery remains available. Automatic sign-in recovery after a protected tool returns 401 was not tested.
 
 ## Account and permissions
 
