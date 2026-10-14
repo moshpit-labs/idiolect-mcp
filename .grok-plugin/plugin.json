@@ -1,0 +1,16 @@
+{
+  "name": "idiolect",
+  "description": "Write and revise emails, messages, posts, replies, and docs with your Idiolect AI Writing Profile.",
+  "author": {
+    "name": "Moshpit Labs",
+    "url": "https://idiolect.app"
+  },
+  "homepage": "https://idiolect.app",
+  "repository": "https://github.com/moshpit-labs/idiolect-mcp",
+  "license": "MIT",
+  "keywords": [
+    "idiolect",
+    "idiolect ai"
+  ],
+  "mcpServers": "./.mcp.json"
+}
