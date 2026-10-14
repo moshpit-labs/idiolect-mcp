@@ -53,6 +53,11 @@ Add this to `.vscode/mcp.json`. Start the server from the MCP controls and compl
 
 See the [VS Code MCP configuration reference](https://code.visualstudio.com/docs/agents/reference/mcp-configuration).
 
+### GitHub Copilot CLI
+
+See the [Copilot CLI plugin guide](docs/COPILOT.md) for the Agent Plugins 1.0 package and local installation.
+Native testing of this package is pending; this is separate from the VS Code setup above.
+
 ### OpenCode
 
 Add this to `opencode.json` in your project:
