@@ -21,8 +21,11 @@ devin plugins info idiolect-ai
 
 Use `--local`: a normal install can sync the plugin to your personal cloud manifest.
 Review the installation preview and approve only this package.
-Native Devin installation, OAuth, writing, and refinement remain untested.
-Static package validation does not prove those workflows.
+On 14 October 2026, Devin CLI 3000.11.3 passed local plugin installation, personal OAuth, writing, and refinement.
+The native test used SWE-2 medium with synthetic writing.
+Ownership, the selected test profile, refinement parent linkage, and unchanged presentation were verified.
+Two account preflight refusals occurred before the two successful writing invocations.
+No writing-engine calls occurred during those refusals.
 
 ## Personal account and consent
 

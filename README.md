@@ -62,7 +62,8 @@ See the guide for the tested scope; this is separate from the VS Code setup abov
 ### Devin CLI
 
 See the [Devin CLI plugin guide](docs/DEVIN.md) for personal OAuth and device-only local installation.
-Native Devin testing is pending; the existing portable manifest is used unchanged.
+Devin CLI 3000.11.3 passed local installation, personal OAuth, writing and refinement on 14 October 2026.
+See the guide for the tested scope; the existing portable manifest is used unchanged.
 
 ### OpenCode
 
