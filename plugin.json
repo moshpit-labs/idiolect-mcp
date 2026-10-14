@@ -1,6 +1,6 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-  "name": "idiolect",
+  "name": "idiolect-ai",
   "version": "1.0.0",
   "description": "Write and revise emails, messages, posts, replies, and docs with your Idiolect AI Writing Profile.",
   "author": {
@@ -12,6 +12,6 @@
   "license": "MIT",
   "keywords": [
     "idiolect",
-    "idiolect ai"
+    "idiolect-ai"
   ]
 }

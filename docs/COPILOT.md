@@ -3,6 +3,7 @@
 This Agent Plugins 1.0 package connects interactive GitHub Copilot CLI to Idiolect AI's hosted MCP service.
 It contains one remote MCP configuration and no skills, hooks, agents, or local executable.
 Packaging version `1.0.0` is manifest metadata, not a release or published marketplace listing.
+The plugin identifier is `idiolect-ai`; its MCP server remains `idiolect`.
 
 ## Local installation
 
