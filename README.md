@@ -22,6 +22,8 @@ See the [Codex MCP guide](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)
 
 ### Cline
 
+Released Cline CLI 3.0.71 hit an OAuth callback bug in our test; native sign-in, writing and refinement passed only with a local client patch. Wait for a release containing the [upstream fix](https://github.com/cline/cline/pull/15117) before normal use.
+
 Add this to Cline's MCP settings (`~/.cline/data/settings/cline_mcp_settings.json` for the CLI):
 
 ```json
