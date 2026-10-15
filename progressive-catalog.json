@@ -72,7 +72,7 @@
                   "minLength": 1,
                   "maxLength": 12000
                 },
-                "description": "Send text the user wrote, unchanged. Remove signatures, quoted replies, forwarded text, boilerplate, prompts, templates, and AI text."
+                "description": "Send text the user wrote, unchanged. Remove signatures, quoted replies, forwarded text, boilerplate, prompts, templates, AI text, and any wording you added around their samples."
               },
               "answers": {
                 "type": "array",
@@ -98,7 +98,7 @@
                   ],
                   "additionalProperties": false
                 },
-                "description": "When the user chooses to answer questions about how they write, send their answers. Do not summarize or expand them."
+                "description": "Messages the user wrote for situations you gave them. Send each unchanged, with the situation as `question`."
               }
             },
             "required": [
@@ -205,6 +205,11 @@
                 "type": "string",
                 "format": "uuid",
                 "description": "The writing reference returned by the tool."
+              },
+              "purpose": {
+                "type": "string",
+                "const": "reminder",
+                "description": "Set `reminder` only to decline the optional reminder after completed writing. Use `choice` `plain`."
               },
               "choice": {
                 "type": "string",
@@ -308,7 +313,7 @@
               "other",
               "unknown"
             ],
-            "description": "Who wrote this text. `user`: the user. `host`: the assistant. `other`: a third party. If unsure, omit `sourceAuthor`."
+            "description": "Who wrote this text. `user`: the user. `host`: the assistant. `other`: a third party. If unsure, omit `sourceAuthor`. Set it whenever you know who wrote the text."
           },
           "evidence": {
             "type": "object",
@@ -335,7 +340,7 @@
                   "minLength": 1,
                   "maxLength": 12000
                 },
-                "description": "Send text the user wrote, unchanged. Remove signatures, quoted replies, forwarded text, boilerplate, prompts, templates, and AI text."
+                "description": "Send text the user wrote, unchanged. Remove signatures, quoted replies, forwarded text, boilerplate, prompts, templates, AI text, and any wording you added around their samples."
               },
               "answers": {
                 "type": "array",
@@ -361,7 +366,7 @@
                   ],
                   "additionalProperties": false
                 },
-                "description": "When the user chooses to answer questions about how they write, send their answers. Do not summarize or expand them."
+                "description": "Messages the user wrote for situations you gave them. Send each unchanged, with the situation as `question`."
               }
             },
             "required": [
@@ -468,6 +473,11 @@
                 "type": "string",
                 "format": "uuid",
                 "description": "The writing reference returned by the tool."
+              },
+              "purpose": {
+                "type": "string",
+                "const": "reminder",
+                "description": "Set `reminder` only to decline the optional reminder after completed writing. Use `choice` `plain`."
               },
               "choice": {
                 "type": "string",
@@ -756,7 +766,8 @@
               "rename_profile",
               "set_current_profile",
               "set_default_template"
-            ]
+            ],
+            "description": "Choose an `action`: `create_profile` builds from `evidence`; `add_samples` saves more writing; `remove_sample` deletes one sample. `add_rule` saves a stated preference; `remove_rule` deletes one rule. `rename_profile` changes its name; `set_current_profile` selects it for writing; `set_default_template` sets or clears a template."
           },
           "profile": {
             "type": "string",
@@ -788,7 +799,7 @@
                   "minLength": 1,
                   "maxLength": 12000
                 },
-                "description": "Send text the user wrote, unchanged. Remove signatures, quoted replies, forwarded text, boilerplate, prompts, templates, and AI text."
+                "description": "Send text the user wrote, unchanged. Remove signatures, quoted replies, forwarded text, boilerplate, prompts, templates, AI text, and any wording you added around their samples."
               },
               "answers": {
                 "type": "array",
@@ -814,7 +825,7 @@
                   ],
                   "additionalProperties": false
                 },
-                "description": "When the user chooses to answer questions about how they write, send their answers. Do not summarize or expand them."
+                "description": "Messages the user wrote for situations you gave them. Send each unchanged, with the situation as `question`."
               }
             },
             "required": [
@@ -845,7 +856,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 60,
-            "description": "For `rename_profile` (required) or `create_profile`."
+            "description": "The Writing Profile's display name. Required for `rename_profile`; optional for `create_profile`."
           },
           "writingJobVersionId": {
             "type": "string",
@@ -864,32 +875,38 @@
               "channel": {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 200
+                "maxLength": 200,
+                "description": "Where the writing appears, such as email, chat, or a social post."
               },
               "audience": {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 200
+                "maxLength": 200,
+                "description": "Who will read the writing, such as clients, colleagues, or the public."
               },
               "relationship": {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 200
+                "maxLength": 200,
+                "description": "The user's relationship to the reader, such as manager, friend, or customer."
               },
               "purpose": {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 200
+                "maxLength": 200,
+                "description": "What the writing should achieve, such as an update, request, or apology."
               },
               "register": {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 200
+                "maxLength": 200,
+                "description": "The tone or formality the rule applies to, such as casual or formal."
               },
               "format": {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 200
+                "maxLength": 200,
+                "description": "The writing's structure, such as a short reply, bullet list, or long article."
               }
             },
             "additionalProperties": false,

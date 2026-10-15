@@ -53,11 +53,6 @@ Add this to `.vscode/mcp.json`. Start the server from the MCP controls and compl
 
 See the [VS Code MCP configuration reference](https://code.visualstudio.com/docs/agents/reference/mcp-configuration).
 
-### Google Antigravity
-
-See the [Antigravity plugin guide](docs/ANTIGRAVITY.md) for the host-specific MCP-only package and local installation.
-Antigravity CLI 1.3.5 passed local plugin loading, explicit native OAuth authentication, writing and refinement on 15 October 2026.
-
 ### OpenCode
 
 Add this to `opencode.json` in your project:
@@ -92,8 +87,11 @@ Hosted OAuth and API-key account mode advertise these five tools:
 - `manage_profile` creates or changes Writing Profiles and stated rules.
 
 If you have no Writing Profile, the service offers setup from your own writing or answers.
-You can skip setup and complete that request without a profile. Follow the returned setup
-choices and reference; do not restart the held request. Whole-profile deletion is on the website.
+You can skip setup and keep writing without a profile. After three completed pieces, one
+optional reminder may appear after the writing. Ignoring it does not repeat it; declining it
+stops future reminders. Follow the returned setup choices and reference. A reminder decline
+uses `setup.purpose` `reminder` and `setup.choice` `plain`; it never rewrites the completed piece.
+Whole-profile deletion is on the website.
 
 Use your own authored writing as profile evidence. Your host can fetch it when you ask.
 Review the retrieved pieces, then approve the exact pieces to send for your Writing Profile.
