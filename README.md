@@ -20,6 +20,28 @@ codex mcp login idiolect
 
 See the [Codex MCP guide](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
 
+### Cline
+
+Add this to Cline's MCP settings (`~/.cline/data/settings/cline_mcp_settings.json` for the CLI):
+
+```json
+{
+  "mcpServers": {
+    "idiolect": {
+      "type": "streamableHttp",
+      "url": "https://idiolect.app/api/mcp",
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+Set `type` to `streamableHttp`; `http` is not valid for this field.
+Use Cline's MCP server controls or the `cline mcp` wizard to authorize OAuth for `idiolect`.
+Review the account and tool approvals. No API key, custom header or local adapter is needed.
+See the [Cline MCP guide](https://docs.cline.bot/mcp/mcp-overview).
+
 ### Cursor
 
 Add this to `.cursor/mcp.json`, then complete OAuth sign-in in Cursor's MCP settings:
