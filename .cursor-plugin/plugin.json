@@ -1,0 +1,19 @@
+{
+  "name": "idiolect-ai",
+  "displayName": "Idiolect AI",
+  "version": "1.0.0",
+  "description": "Write and refine emails, messages, posts, replies, and docs in your voice with your portable Writing Profile.",
+  "author": {
+    "name": "Moshpit Labs"
+  },
+  "homepage": "https://idiolect.app",
+  "repository": "https://github.com/moshpit-labs/idiolect-mcp",
+  "license": "MIT",
+  "keywords": [
+    "idiolect-ai",
+    "writing",
+    "mcp"
+  ],
+  "logo": "assets/idiolect-logo.png",
+  "mcpServers": ".mcp.json"
+}
