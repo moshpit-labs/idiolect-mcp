@@ -22,6 +22,8 @@ See the [Codex MCP guide](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)
 
 ### Cursor
 
+See the [Cursor plugin guide](docs/CURSOR.md) for the MCP-only package and current compatibility status.
+
 Add this to `.cursor/mcp.json`, then complete OAuth sign-in in Cursor's MCP settings:
 
 ```json
