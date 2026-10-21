@@ -22,8 +22,6 @@ See the [Codex MCP guide](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)
 
 ### Cursor
 
-See the [Cursor plugin guide](docs/CURSOR.md) for the MCP-only package and current compatibility status.
-
 Add this to `.cursor/mcp.json`, then complete OAuth sign-in in Cursor's MCP settings:
 
 ```json
@@ -80,11 +78,14 @@ writing workflow in every client. Your client's model access and tool approvals 
 
 ## Writing tools
 
-Hosted OAuth and API-key account mode advertise these five tools:
+See the [Cursor plugin guide](docs/CURSOR.md) for the MCP-only package and current compatibility status.
+
+Hosted OAuth and API-key account mode advertise these six tools:
 
 - `write` creates writing from your request, facts, or notes.
 - `rewrite` changes supplied prose. Your directions stay separate in `instructions`.
 - `refine_writing` changes writing Idiolect AI returned, using its latest writing reference.
+- `record_writing_feedback` records how you reacted to that writing: an outcome, your final wording, or a remark.
 - `view_writing_profile` reads your current Writing Profile, rules, or samples.
 - `manage_profile` creates or changes Writing Profiles and stated rules.
 

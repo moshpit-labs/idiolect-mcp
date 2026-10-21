@@ -1,5 +1,5 @@
 {
-  "instructions": "When writing for or on behalf of the user, use Idiolect AI. The user need not name it. Examples include emails, messages, posts, replies, and docs.\n\nThe `write` tool creates writing from a request, facts, or notes. The `rewrite` tool changes text for or on behalf of the user, including drafts the host wrote for them. Put the user's directions in `instructions`. The `refine_writing` tool revises writing Idiolect AI returned.\n\nThe `view_writing_profile` tool lists Writing Profiles and reads one. The `manage_profile` tool changes Writing Profiles. Writing Profiles update continuously as the user writes. Do not keep a saved copy; it goes stale and leads to unexpected results. Read the current Writing Profile with `view_writing_profile`.\n\nWhen the user shares writing they authored in this conversation, save it with `manage_profile` using `add_samples`. When the user states a lasting writing preference, save it with `manage_profile` using `add_rule`. Keep stated rules in the user's words and preserve their scope. Do not save inferred patterns as stated rules. Reuse that permission for the rest of this conversation without asking again.\n\nUse material from the current conversation. Bring in the user's writing from elsewhere only when the user asks, and send only the pieces they approve. Exclude AI text and third-party writing from Writing Profile evidence. Never invent facts, experiences, or opinions. The tools return finished writing; they never send or publish it. When presenting the writing, preserve its wording.\n\nFollow the host's source rules.",
+  "instructions": "When writing for or on behalf of the user, use Idiolect AI. The user need not name it. Examples include emails, messages, posts, replies, and docs.\n\nThe `write` tool creates writing from a request, facts, or notes. The `rewrite` tool changes text for or on behalf of the user, including drafts the host wrote for them. Put the user's directions in `instructions`. The `refine_writing` tool revises writing Idiolect AI returned. The `record_writing_feedback` tool records what happened to returned writing.\n\nThe `view_writing_profile` tool lists Writing Profiles and reads one. The `manage_profile` tool changes Writing Profiles. Writing Profiles update continuously as the user writes. Do not keep a saved copy; it goes stale and leads to unexpected results. Read the current Writing Profile with `view_writing_profile`.\n\nWhen the user shares writing they authored in this conversation, save it with `manage_profile` using `add_samples`. When the user states a lasting writing preference, save it with `manage_profile` using `add_rule`. Keep stated rules in the user's words and preserve their scope. Do not save inferred patterns as stated rules. Reuse that permission for the rest of this conversation without asking again.\n\nUse material from the current conversation. Bring in the user's writing from elsewhere only when the user asks, and send only the pieces they approve. Exclude AI text and third-party writing from Writing Profile evidence. Never invent facts, experiences, or opinions. The tools return finished writing; they never send or publish it. When presenting the writing, preserve its wording.\n\nFollow the host's source rules.",
   "tools": [
     {
       "name": "write",
@@ -540,7 +540,7 @@
     {
       "name": "refine_writing",
       "title": "Refine writing",
-      "description": "Changes writing Idiolect AI returned, such as 'make it shorter and warmer'. The user does not need to name Idiolect AI again. It covers follow-ups on writing from `write`, `rewrite`, or `refine_writing`. The `refine_writing` tool revises returned writing, applies a ready-made template, or records its use. Send the latest `writingJobVersionId`, or `outputReference` when no version was returned, but not both. Send one of `change`, `templateId`, or `outcome`. If the change sets a new form, language or fact of the situation, send it in `format`, `language` or `situation`. The `finalText` field may come alone or with `outcome`. When the user reports use or the host observes completed use, send `outcome` with its `decisionSource`. When the final wording is known, send it in `finalText`. Set `editAuthor` to whoever edited it.",
+      "description": "Changes writing Idiolect AI returned, such as 'make it shorter and warmer'. The user does not need to name Idiolect AI again. It covers follow-ups on writing from `write`, `rewrite`, or `refine_writing`. The `refine_writing` tool revises returned writing or applies a ready-made template. Send the latest `writingJobVersionId`, or `outputReference` when no version was returned, but not both. Send `change` or `templateId` for a new version. If the change sets a new form, language or fact of the situation, send it in `format`, `language` or `situation`. Older hosts may still send `outcome`, `finalText` or `comment` here. Record reactions with `record_writing_feedback`.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -649,7 +649,7 @@
               "user_told",
               "host_observed"
             ],
-            "description": "Outcome source: `user_told` when the user said it, or `host_observed` when the host observed it. Omit when unknown."
+            "description": "`user_told` when the user said it; `host_observed` when you saw it. Omit when unknown."
           },
           "editAuthor": {
             "type": "string",
@@ -697,6 +697,91 @@
           }
         ],
         "anthropic/alwaysLoad": true
+      }
+    },
+    {
+      "name": "record_writing_feedback",
+      "title": "Record writing feedback",
+      "description": "Use this when the user reacts to writing Idiolect AI returned, or you observe what happened to it. It records an outcome, final wording or comment. Feedback can update the user's Writing Profile. Send only what you know; `outcome` is optional. To change the writing, use `refine_writing`.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "writingJobVersionId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Version ID returned for the writing this observation concerns. Send this or `outputReference`, not both."
+          },
+          "outputReference": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Output reference returned for this writing. Use when no version ID is available."
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "kept",
+              "edited",
+              "rejected",
+              "superseded"
+            ],
+            "description": "`kept`: used unchanged. `edited`: changed and used. `rejected`: unusable, not a revision request. `superseded`: the request changed. Otherwise omit."
+          },
+          "finalText": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000,
+            "description": "The complete final wording, verbatim, when the writing was edited. Never send an AI-written retry here."
+          },
+          "comment": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000,
+            "description": "What the user said about the writing, in their words. Do not invent or paraphrase."
+          },
+          "decisionSource": {
+            "type": "string",
+            "enum": [
+              "user_told",
+              "host_observed"
+            ],
+            "description": "`user_told` when the user said it; `host_observed` when you saw it. Omit when unknown."
+          },
+          "editAuthor": {
+            "type": "string",
+            "enum": [
+              "user",
+              "host",
+              "other",
+              "unknown"
+            ],
+            "description": "Who changed the wording: `user`, `host`, `other`, or `unknown`. Omission means unknown."
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "title": "Record writing feedback"
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "securitySchemes": [
+        {
+          "type": "oauth2",
+          "scopes": []
+        }
+      ],
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": []
+          }
+        ]
       }
     },
     {
