@@ -836,7 +836,7 @@
     {
       "name": "manage_profile",
       "title": "Manage writing profile",
-      "description": "Change the user's Writing Profiles and default writing template. Choose an `action`: `create_profile`, `add_samples`, `remove_sample`, `add_rule`, `remove_rule`, `rename_profile`, `set_current_profile`, or `set_default_template`. When the user shares writing they authored in this conversation, save it with `add_samples`. Without a Writing Profile, use `create_profile`. When the user states a lasting writing preference, save it with `add_rule`. Keep stated rules in the user's words and preserve their scope. Do not save inferred patterns as stated rules. Reuse that permission for the rest of this conversation without asking again. The user can delete a whole Writing Profile on the Idiolect AI website.",
+      "description": "Change the user's Writing Profiles and default writing template, or answer a question Idiolect AI asked. Choose an `action`: `create_profile`, `add_samples`, `remove_sample`, `add_rule`, `remove_rule`, `rename_profile`, `set_current_profile`, `set_default_template`, or `answer_question`. When the user shares writing they authored in this conversation, save it with `add_samples`. Without a Writing Profile, use `create_profile`. When the user states a lasting writing preference, save it with `add_rule`. Keep stated rules in the user's words and preserve their scope. Do not save inferred patterns as stated rules. Reuse that permission for the rest of this conversation without asking again. The user can delete a whole Writing Profile on the Idiolect AI website.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -850,9 +850,10 @@
               "remove_rule",
               "rename_profile",
               "set_current_profile",
-              "set_default_template"
+              "set_default_template",
+              "answer_question"
             ],
-            "description": "Choose an `action`: `create_profile` builds from `evidence`; `add_samples` saves more writing; `remove_sample` deletes one sample. `add_rule` saves a stated preference; `remove_rule` deletes one rule. `rename_profile` changes its name; `set_current_profile` selects it for writing; `set_default_template` sets or clears a template."
+            "description": "Choose an `action`: `create_profile` builds from `evidence`; `add_samples` saves more writing; `remove_sample` deletes one sample. `add_rule` saves a stated preference; `remove_rule` deletes one rule. `rename_profile` changes its name; `set_current_profile` selects it for writing; `set_default_template` sets or clears a template. `answer_question` records an answer to a question Idiolect AI asked."
           },
           "profile": {
             "type": "string",
@@ -1020,6 +1021,42 @@
             "type": "boolean",
             "const": true,
             "description": "For `set_default_template`: clear the default template. Send `clear` or `templateId`, but not both."
+          },
+          "questionId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "For `answer_question`: the `questionId` Idiolect AI gave with the question."
+          },
+          "answeredBy": {
+            "type": "string",
+            "enum": [
+              "user",
+              "host"
+            ],
+            "description": "For `answer_question`: `user` when the user chose, `host` when you answer from this conversation."
+          },
+          "option": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "description": "For `answer_question`: the chosen option id. A host that does not know sends `unknown`. A user who skips the question sends `decline`. For the user, omit it to show them a form where the client supports one."
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "For `answer_question`: optional detail the user or host gave with the answer."
+          },
+          "sources": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            "description": "For `answer_question` with `answeredBy` `host`: where in this conversation you found the answer. Required unless `option` is `unknown`."
           }
         },
         "required": [
