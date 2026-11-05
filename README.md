@@ -73,6 +73,18 @@ Add this to `opencode.json` in your project:
 Then run `opencode mcp auth idiolect` and check the connection with `opencode mcp list`.
 See the [OpenCode MCP guide](https://opencode.ai/docs/mcp-servers/).
 
+### Kiro
+
+In Kiro's Powers panel, choose **Add Custom Power → Import power from GitHub** and use
+[`https://github.com/moshpit-labs/idiolect-mcp/tree/main`](https://github.com/moshpit-labs/idiolect-mcp/tree/main).
+The repository root contains the Agent Plugins manifest and hosted MCP configuration.
+
+Activate the power with `idiolect-ai`, then complete browser sign-in when a protected tool
+requires it. Use your own Idiolect AI account and review Kiro's tool approvals. Avoid adding
+this power if you already have the same Idiolect AI connection configured separately.
+
+See the [Kiro power installation guide](https://kiro.dev/docs/powers/installation/).
+
 These examples configure the connection. A connected catalog does not prove a complete
 writing workflow in every client. Your client's model access and tool approvals also apply.
 
