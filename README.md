@@ -4,6 +4,13 @@ Write and revise emails, messages, posts, replies, and docs in your voice with y
 Writing Profile. Idiolect AI creates new writing directly from your request and revises text
 you supply. You do not need to fetch a profile before writing.
 
+## Use in Claude or ChatGPT
+
+Idiolect AI is in the official directories of both apps:
+
+- **Claude:** add the [Idiolect AI connector from the Claude directory](https://idiolect.app/go/claude-directory?e=npm_readme).
+- **ChatGPT:** add the [Idiolect AI plugin from the ChatGPT directory](https://idiolect.app/go/chatgpt-directory?e=npm_readme).
+
 ## Connect with hosted OAuth
 
 Use **`https://idiolect.app/api/mcp`** in a client that supports remote HTTP MCP and OAuth.
