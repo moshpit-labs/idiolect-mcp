@@ -20,30 +20,6 @@ codex mcp login idiolect
 
 See the [Codex MCP guide](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
 
-### Cline
-
-Released Cline CLI 3.0.71 hit an OAuth callback bug in our test; native sign-in, writing and refinement passed only with a local client patch. Wait for a release containing the [upstream fix](https://github.com/cline/cline/pull/15117) before normal use.
-
-Add this to Cline's MCP settings (`~/.cline/data/settings/cline_mcp_settings.json` for the CLI):
-
-```json
-{
-  "mcpServers": {
-    "idiolect": {
-      "type": "streamableHttp",
-      "url": "https://idiolect.app/api/mcp",
-      "disabled": false,
-      "autoApprove": []
-    }
-  }
-}
-```
-
-Set `type` to `streamableHttp`; `http` is not valid for this field.
-Use Cline's MCP server controls or the `cline mcp` wizard to authorize OAuth for `idiolect`.
-Review the account and tool approvals. No API key, custom header or local adapter is needed.
-See the [Cline MCP guide](https://docs.cline.bot/mcp/mcp-overview).
-
 ### Cursor
 
 Add this to `.cursor/mcp.json`, then complete OAuth sign-in in Cursor's MCP settings:
@@ -97,24 +73,10 @@ Add this to `opencode.json` in your project:
 Then run `opencode mcp auth idiolect` and check the connection with `opencode mcp list`.
 See the [OpenCode MCP guide](https://opencode.ai/docs/mcp-servers/).
 
-### Kiro
-
-In Kiro's Powers panel, choose **Add Custom Power → Import power from GitHub** and use
-[`https://github.com/moshpit-labs/idiolect-mcp/tree/main`](https://github.com/moshpit-labs/idiolect-mcp/tree/main).
-The repository root contains the Agent Plugins manifest and hosted MCP configuration.
-
-Activate the power with `idiolect-ai`, then complete browser sign-in when a protected tool
-requires it. Use your own Idiolect AI account and review Kiro's tool approvals. Avoid adding
-this power if you already have the same Idiolect AI connection configured separately.
-
-See the [Kiro power installation guide](https://kiro.dev/docs/powers/installation/).
-
 These examples configure the connection. A connected catalog does not prove a complete
 writing workflow in every client. Your client's model access and tool approvals also apply.
 
 ## Writing tools
-
-See the [Cursor plugin guide](docs/CURSOR.md) for the MCP-only package and current compatibility status.
 
 Hosted OAuth and API-key account mode advertise these six tools:
 
@@ -125,8 +87,12 @@ Hosted OAuth and API-key account mode advertise these six tools:
 - `view_writing_profile` reads your current Writing Profile, rules, or samples.
 - `manage_profile` creates or changes Writing Profiles and stated rules.
 
-If you have no Writing Profile, the service offers setup from your own writing or answers.
-You can skip setup and keep writing without a profile. After three completed pieces, one
+If you have no Writing Profile, your first request can return `needs_profile_info`: questions
+about how you write, each marked for the host or for you. Reply with `setup` (`choice` `profile`,
+the same `writingJobVersionId`, and `firstRun` with each question, its answer and the returned
+`round`). Idiolect AI then writes and starts your Writing Profile. `choice` `plain` writes now.
+Where this is switched off, the service offers setup from your own writing or answers, and you
+can skip setup and keep writing without a profile. After three completed pieces, one
 optional reminder may appear after the writing. Ignoring it does not repeat it; declining it
 stops future reminders. Follow the returned setup choices and reference. A reminder decline
 uses `setup.purpose` `reminder` and `setup.choice` `plain`; it never rewrites the completed piece.

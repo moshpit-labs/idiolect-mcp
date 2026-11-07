@@ -4,7 +4,7 @@
     {
       "name": "write",
       "title": "Write",
-      "description": "Drafts an email, message, post, reply, doc, or report in the user's style. Use for new writing for or on behalf of the user, using their current Writing Profile when available. It writes from their request, facts, notes, or an outline, without inventing missing facts. The tool produces the draft. There is no need to draft it first. Works without a Writing Profile. Put the user's directions in `instructions`. It returns finished writing for direct presentation. When presenting the writing, preserve its wording.",
+      "description": "Drafts an email, message, post, reply, doc, or report in the user's style. Use for new writing for or on behalf of the user, using their current Writing Profile when available. It writes from their request, facts, notes, or an outline, without inventing missing facts. The tool produces the draft. There is no need to draft it first. For a person with no Writing Profile, the first result can ask questions about how they write before it writes. Put the user's directions in `instructions`. It returns finished writing for direct presentation. When presenting the writing, preserve its wording.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -35,7 +35,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 100,
-            "description": "The language for the finished writing, such as French. When the user requests a language, set `language`. Otherwise, follow the request or source text language."
+            "description": "The language for the finished writing, as a BCP 47 language tag, such as `fr` or `pt-BR`. When the user requests a language, set `language`. Otherwise, follow the request or source text language."
           },
           "requestAuthor": {
             "type": "string",
@@ -232,6 +232,53 @@
               "alwaysUse": {
                 "type": "boolean",
                 "description": "True when the user asked to use this style for future writing."
+              },
+              "firstRun": {
+                "type": "object",
+                "properties": {
+                  "round": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 20
+                  },
+                  "answers": {
+                    "type": "array",
+                    "maxItems": 60,
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "question": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 4000
+                        },
+                        "answer": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 20000
+                        }
+                      },
+                      "required": [
+                        "question",
+                        "answer"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "description": "Each question from the result, word for word, with its answer. An answer comes from what you know about the person or from the person."
+                  },
+                  "writing": {
+                    "type": "array",
+                    "maxItems": 12,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 12000
+                    },
+                    "description": "Pieces that the person wrote themselves, word for word, that the person approved for this use. Not AI writing."
+                  }
+                },
+                "additionalProperties": false,
+                "description": "Only when replying to a `needs_profile_info` result. Send each question with its answer. Send `unknown` as the answer when you do not know it. Send `round` as returned. Use `choice` `profile`."
               }
             },
             "required": [
@@ -239,6 +286,55 @@
               "choice"
             ],
             "additionalProperties": false
+          },
+          "aboutTheWriter": {
+            "type": "object",
+            "properties": {
+              "writesTo": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000,
+                "description": "Who the person usually writes to."
+              },
+              "register": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000,
+                "description": "How formal or casual their writing is."
+              },
+              "greetings": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000,
+                "description": "How they usually greet people."
+              },
+              "signOff": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000,
+                "description": "How they usually sign off, and with what name."
+              },
+              "habits": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000,
+                "description": "Habits in their writing, such as length, layout or punctuation."
+              },
+              "wordsTheyUse": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000,
+                "description": "Words or phrases they use a lot."
+              },
+              "wordsTheyAvoid": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000,
+                "description": "Words or phrases they avoid."
+              }
+            },
+            "additionalProperties": false,
+            "description": "Optional: what you already know about how the person writes, from their own messages or what they told you. Leave out what you do not know. This is not a direction for this piece."
           }
         },
         "additionalProperties": false
@@ -272,7 +368,7 @@
     {
       "name": "rewrite",
       "title": "Rewrite",
-      "description": "Rewrites text: 'make this sound like me', 'less AI', shorter, or clearer. Use for writing for or on behalf of the user, including drafts the host wrote for them. It rewrites in the user's style using their current Writing Profile when available. It covers an email, message, post, reply, or doc, from a grammar fix to a complete rewrite. Covers asks such as 'make this less AI-written' or 'make it less formal'. Changes include grammar, spelling, clarity, length, structure, tone, style, audience, or format. It can summarize, expand, simplify, paraphrase, or repurpose. Works without a Writing Profile. Unless the user asks to change them, it keeps supplied facts and protected wording. Put the user's change request in `instructions`. It returns finished writing for direct presentation. When presenting the writing, preserve its wording.",
+      "description": "Rewrites text: 'make this sound like me', 'less AI', shorter, or clearer. Use for writing for or on behalf of the user, including drafts the host wrote for them. It rewrites in the user's style using their current Writing Profile when available. It covers an email, message, post, reply, or doc, from a grammar fix to a complete rewrite. Covers asks such as 'make this less AI-written' or 'make it less formal'. Changes include grammar, spelling, clarity, length, structure, tone, style, audience, or format. It can summarize, expand, simplify, paraphrase, or repurpose. For a person with no Writing Profile, the first result can ask questions about how they write before it writes. Unless the user asks to change them, it keeps supplied facts and protected wording. Put the user's change request in `instructions`. It returns finished writing for direct presentation. When presenting the writing, preserve its wording.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -303,7 +399,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 100,
-            "description": "The language for the finished writing, such as French. When the user requests a language, set `language`. Otherwise, follow the request or source text language."
+            "description": "The language for the finished writing, as a BCP 47 language tag, such as `fr` or `pt-BR`. When the user requests a language, set `language`. Otherwise, follow the request or source text language."
           },
           "sourceAuthor": {
             "type": "string",
@@ -500,6 +596,53 @@
               "alwaysUse": {
                 "type": "boolean",
                 "description": "True when the user asked to use this style for future writing."
+              },
+              "firstRun": {
+                "type": "object",
+                "properties": {
+                  "round": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 20
+                  },
+                  "answers": {
+                    "type": "array",
+                    "maxItems": 60,
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "question": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 4000
+                        },
+                        "answer": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 20000
+                        }
+                      },
+                      "required": [
+                        "question",
+                        "answer"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "description": "Each question from the result, word for word, with its answer. An answer comes from what you know about the person or from the person."
+                  },
+                  "writing": {
+                    "type": "array",
+                    "maxItems": 12,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 12000
+                    },
+                    "description": "Pieces that the person wrote themselves, word for word, that the person approved for this use. Not AI writing."
+                  }
+                },
+                "additionalProperties": false,
+                "description": "Only when replying to a `needs_profile_info` result. Send each question with its answer. Send `unknown` as the answer when you do not know it. Send `round` as returned. Use `choice` `profile`."
               }
             },
             "required": [
@@ -507,6 +650,55 @@
               "choice"
             ],
             "additionalProperties": false
+          },
+          "aboutTheWriter": {
+            "type": "object",
+            "properties": {
+              "writesTo": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000,
+                "description": "Who the person usually writes to."
+              },
+              "register": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000,
+                "description": "How formal or casual their writing is."
+              },
+              "greetings": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000,
+                "description": "How they usually greet people."
+              },
+              "signOff": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000,
+                "description": "How they usually sign off, and with what name."
+              },
+              "habits": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000,
+                "description": "Habits in their writing, such as length, layout or punctuation."
+              },
+              "wordsTheyUse": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000,
+                "description": "Words or phrases they use a lot."
+              },
+              "wordsTheyAvoid": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000,
+                "description": "Words or phrases they avoid."
+              }
+            },
+            "additionalProperties": false,
+            "description": "Optional: what you already know about how the person writes, from their own messages or what they told you. Leave out what you do not know. This is not a direction for this piece."
           }
         },
         "additionalProperties": false
@@ -570,7 +762,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 100,
-            "description": "Send only when this change asks for another language. The value is that language. Omit it to keep the language of the writing."
+            "description": "Send only when this change asks for another language. The value is a BCP 47 language tag, such as `fr`. Omit it to keep the language of the writing."
           },
           "situation": {
             "type": "object",
@@ -787,7 +979,7 @@
     {
       "name": "view_writing_profile",
       "title": "View writing profile",
-      "description": "Shows the user's current Writing Profile and rules, and lists their Writing Profiles. To view another Writing Profile, set `profile` to its id or name. To list its writing samples, set `samples` true. Writing Profiles update continuously as the user writes, so read the current one here each time instead of keeping a saved copy.",
+      "description": "Shows the user's current Writing Profile and rules, and lists their Writing Profiles. To view another Writing Profile, set `profile` to its id or name. To list its writing samples, set `samples` true. A Writing Profile with habits shows how many habits each part holds and lists the habits that are not sure yet. To list the habits of one part, set `part`. To show one habit, set `habitId`. Writing Profiles update continuously as the user writes, so read the current one here each time instead of keeping a saved copy.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -804,6 +996,24 @@
             "type": "string",
             "format": "uuid",
             "description": "With `samples`: the `nextCursor` from the previous page."
+          },
+          "part": {
+            "type": "string",
+            "enum": [
+              "core_voice",
+              "convention",
+              "never",
+              "mark",
+              "polish",
+              "exemplar"
+            ],
+            "description": "To list every habit in one part of the Writing Profile, set the part: `core_voice` (how the user sounds), `convention` (formats and structure), `never` (what the user does not do), `mark` (words and marks they use), `polish` (spelling and punctuation) or `exemplar` (example pieces)."
+          },
+          "habitId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "To show one habit, set the habit id from an earlier `view_writing_profile`."
           }
         },
         "additionalProperties": false
@@ -836,7 +1046,7 @@
     {
       "name": "manage_profile",
       "title": "Manage writing profile",
-      "description": "Change the user's Writing Profiles and default writing template, or answer a question Idiolect AI asked. Choose an `action`: `create_profile`, `add_samples`, `remove_sample`, `add_rule`, `remove_rule`, `rename_profile`, `set_current_profile`, `set_default_template`, or `answer_question`. When the user shares writing they authored in this conversation, save it with `add_samples`. Without a Writing Profile, use `create_profile`. When the user states a lasting writing preference, save it with `add_rule`. Keep stated rules in the user's words and preserve their scope. Do not save inferred patterns as stated rules. Reuse that permission for the rest of this conversation without asking again. The user can delete a whole Writing Profile on the Idiolect AI website.",
+      "description": "Change the user's Writing Profiles and default writing template, or answer a question Idiolect AI asked. Choose an `action`: `create_profile`, `add_samples`, `remove_sample`, `add_rule`, `remove_rule`, `rename_profile`, `set_current_profile`, `set_default_template`, `answer_question`, `confirm_habit`, `remove_habit`, or `restore_habit`. When the user shares writing they authored in this conversation, save it with `add_samples`. Without a Writing Profile, use `create_profile`. When the user states a lasting writing preference, save it with `add_rule`. Keep stated rules in the user's words and preserve their scope. Do not save inferred patterns as stated rules. When the user agrees that a habit from `view_writing_profile` is correct, use `confirm_habit`. When the user says a habit is wrong, use `remove_habit`. When the user says how they really write instead, use `add_rule` with `correctsHabitId`. Reuse that permission for the rest of this conversation without asking again. The user can delete a whole Writing Profile on the Idiolect AI website.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -851,9 +1061,12 @@
               "rename_profile",
               "set_current_profile",
               "set_default_template",
-              "answer_question"
+              "answer_question",
+              "confirm_habit",
+              "remove_habit",
+              "restore_habit"
             ],
-            "description": "Choose an `action`: `create_profile` builds from `evidence`; `add_samples` saves more writing; `remove_sample` deletes one sample. `add_rule` saves a stated preference; `remove_rule` deletes one rule. `rename_profile` changes its name; `set_current_profile` selects it for writing; `set_default_template` sets or clears a template. `answer_question` records an answer to a question Idiolect AI asked."
+            "description": "Choose an `action`: `create_profile` builds from `evidence`; `add_samples` saves more writing; `remove_sample` deletes one sample. `add_rule` saves a stated preference; `remove_rule` deletes one rule. `rename_profile` changes its name; `set_current_profile` selects it for writing; `set_default_template` sets or clears a template. `answer_question` records an answer to a question Idiolect AI asked. `confirm_habit` marks a habit as correct; `remove_habit` stops writing from using it; `restore_habit` undoes a removal."
           },
           "profile": {
             "type": "string",
@@ -1002,6 +1215,18 @@
             "type": "string",
             "format": "uuid",
             "description": "For `remove_rule`: the rule id from `view_writing_profile`."
+          },
+          "habitId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "For `confirm_habit`, `remove_habit` and `restore_habit`: the habit id from `view_writing_profile`. Set `profile` for a Writing Profile that is not current."
+          },
+          "correctsHabitId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "For `add_rule`: the id of the habit this rule corrects. The rule is saved and the habit is removed. Set `profile` to the Writing Profile that holds the habit; omit it for the current one."
           },
           "sampleId": {
             "type": "string",
