@@ -1,5 +1,5 @@
 {
-  "instructions": "When writing for or on behalf of the user, use Idiolect AI. The user need not name it. Examples include emails, messages, posts, replies, and docs.\n\nThe `write` tool creates writing from a request, facts, or notes. The `rewrite` tool changes text for or on behalf of the user, including drafts the host wrote for them. Put the user's directions in `instructions`. The `refine_writing` tool revises writing Idiolect AI returned. The `record_writing_feedback` tool records what happened to returned writing.\n\nThe `view_writing_profile` tool lists Writing Profiles and reads one. The `manage_profile` tool changes Writing Profiles. Writing Profiles update continuously as the user writes. Do not keep a saved copy; it goes stale and leads to unexpected results. Read the current Writing Profile with `view_writing_profile`.\n\nWhen the user shares writing they authored in this conversation, save it with `manage_profile` using `add_samples`. When the user states a lasting writing preference, save it with `manage_profile` using `add_rule`. Keep stated rules in the user's words and preserve their scope. Do not save inferred patterns as stated rules. Reuse that permission for the rest of this conversation without asking again.\n\nUse material from the current conversation. Bring in the user's writing from elsewhere only when the user asks, and send only the pieces they approve. Exclude AI text and third-party writing from Writing Profile evidence. Never invent facts, experiences, or opinions. The tools return finished writing; they never send or publish it. When presenting the writing, preserve its wording.\n\nFollow the host's source rules.",
+  "instructions": "When writing for or on behalf of the user, use Idiolect AI. The user need not name it. Examples include emails, messages, posts, replies, and docs.\n\nThe `write` tool creates writing from a request, facts, or notes. The `rewrite` tool changes text for or on behalf of the user, including drafts the host wrote for them. Put the user's directions in `instructions`. The `refine_writing` tool revises writing Idiolect AI returned. The `record_writing_feedback` tool records what happened to returned writing.\n\nThe `view_writing_profile` tool lists Writing Profiles and reads one. The `manage_profile` tool adds to and changes Writing Profiles. The `remove_from_profile` tool removes a writing sample, rule, or habit. Writing Profiles update continuously as the user writes. Do not keep a saved copy; it goes stale and leads to unexpected results. Read the current Writing Profile with `view_writing_profile`.\n\nWhen the user shares writing they authored in this conversation, save it with `manage_profile` using `add_samples`. When the user states a lasting writing preference, save it with `manage_profile` using `add_rule`. Keep stated rules in the user's words and preserve their scope. Do not save inferred patterns as stated rules. Reuse that permission for the rest of this conversation without asking again.\n\nUse material from the current conversation. Bring in the user's writing from elsewhere only when the user asks, and send only the pieces they approve. Exclude AI text and third-party writing from Writing Profile evidence. Never invent facts, experiences, or opinions. The tools return finished writing; they never send or publish it. When presenting the writing, preserve its wording.\n\nFollow the host's source rules.",
   "tools": [
     {
       "name": "write",
@@ -275,6 +275,10 @@
                       "maxLength": 12000
                     },
                     "description": "Pieces that the person wrote themselves, word for word, that the person approved for this use. Not AI writing."
+                  },
+                  "dontAskAgain": {
+                    "type": "boolean",
+                    "description": "True when the person said not to be asked these questions again. Idiolect AI then asks only the host."
                   }
                 },
                 "additionalProperties": false,
@@ -639,6 +643,10 @@
                       "maxLength": 12000
                     },
                     "description": "Pieces that the person wrote themselves, word for word, that the person approved for this use. Not AI writing."
+                  },
+                  "dontAskAgain": {
+                    "type": "boolean",
+                    "description": "True when the person said not to be asked these questions again. Idiolect AI then asks only the host."
                   }
                 },
                 "additionalProperties": false,
@@ -1046,7 +1054,7 @@
     {
       "name": "manage_profile",
       "title": "Manage writing profile",
-      "description": "Change the user's Writing Profiles and default writing template, or answer a question Idiolect AI asked. Choose an `action`: `create_profile`, `add_samples`, `remove_sample`, `add_rule`, `remove_rule`, `rename_profile`, `set_current_profile`, `set_default_template`, `answer_question`, `confirm_habit`, `remove_habit`, or `restore_habit`. When the user shares writing they authored in this conversation, save it with `add_samples`. Without a Writing Profile, use `create_profile`. When the user states a lasting writing preference, save it with `add_rule`. Keep stated rules in the user's words and preserve their scope. Do not save inferred patterns as stated rules. When the user agrees that a habit from `view_writing_profile` is correct, use `confirm_habit`. When the user says a habit is wrong, use `remove_habit`. When the user says how they really write instead, use `add_rule` with `correctsHabitId`. Reuse that permission for the rest of this conversation without asking again. The user can delete a whole Writing Profile on the Idiolect AI website.",
+      "description": "Adds to and changes the user's Writing Profiles and default writing template, and records answers to questions Idiolect AI asked. It removes nothing: `remove_from_profile` removes samples, rules and habits. The `action` is `create_profile`, `add_samples`, `add_rule`, `rename_profile`, `set_current_profile`, `set_default_template`, `answer_question`, `confirm_habit`, or `restore_habit`. `add_samples` saves writing the user authored and shared in this conversation. `create_profile` builds a Writing Profile for a user who has none. `add_rule` saves a lasting writing preference the user stated, in the user's words and with its scope. Inferred patterns are not stated rules. `confirm_habit` marks a habit from `view_writing_profile` as correct when the user agrees with it. `add_rule` with `correctsHabitId` saves how the user really writes in place of a wrong habit. The user's permission to save material holds for the rest of this conversation. The user can delete a whole Writing Profile on the Idiolect AI website.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1055,18 +1063,15 @@
             "enum": [
               "create_profile",
               "add_samples",
-              "remove_sample",
               "add_rule",
-              "remove_rule",
               "rename_profile",
               "set_current_profile",
               "set_default_template",
               "answer_question",
               "confirm_habit",
-              "remove_habit",
               "restore_habit"
             ],
-            "description": "Choose an `action`: `create_profile` builds from `evidence`; `add_samples` saves more writing; `remove_sample` deletes one sample. `add_rule` saves a stated preference; `remove_rule` deletes one rule. `rename_profile` changes its name; `set_current_profile` selects it for writing; `set_default_template` sets or clears a template. `answer_question` records an answer to a question Idiolect AI asked. `confirm_habit` marks a habit as correct; `remove_habit` stops writing from using it; `restore_habit` undoes a removal."
+            "description": "`create_profile` builds from `evidence`; `add_samples` saves more writing. `add_rule` saves a stated preference. `rename_profile` changes its name; `set_current_profile` selects it for writing; `set_default_template` sets or clears a template. `answer_question` records an answer to a question Idiolect AI asked. `confirm_habit` marks a habit as correct; `restore_habit` undoes a habit removal."
           },
           "profile": {
             "type": "string",
@@ -1211,27 +1216,17 @@
             "additionalProperties": false,
             "description": "For `add_rule` across Writing Profiles: the situation the user stated. If it applies everywhere, omit `scope`. Do not combine `scope` with `profile`."
           },
-          "ruleId": {
-            "type": "string",
-            "format": "uuid",
-            "description": "For `remove_rule`: the rule id from `view_writing_profile`."
-          },
           "habitId": {
             "type": "string",
             "minLength": 1,
             "maxLength": 64,
-            "description": "For `confirm_habit`, `remove_habit` and `restore_habit`: the habit id from `view_writing_profile`. Set `profile` for a Writing Profile that is not current."
+            "description": "For `confirm_habit` and `restore_habit`: the habit id from `view_writing_profile`. Set `profile` for a Writing Profile that is not current."
           },
           "correctsHabitId": {
             "type": "string",
             "minLength": 1,
             "maxLength": 64,
             "description": "For `add_rule`: the id of the habit this rule corrects. The rule is saved and the habit is removed. Set `profile` to the Writing Profile that holds the habit; omit it for the current one."
-          },
-          "sampleId": {
-            "type": "string",
-            "format": "uuid",
-            "description": "For `remove_sample`: the sample id from `view_writing_profile`."
           },
           "templateId": {
             "type": "string",
@@ -1292,9 +1287,77 @@
       "annotations": {
         "readOnlyHint": false,
         "openWorldHint": false,
-        "destructiveHint": true,
+        "destructiveHint": false,
         "idempotentHint": false,
         "title": "Manage writing profile"
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "securitySchemes": [
+        {
+          "type": "oauth2",
+          "scopes": []
+        }
+      ],
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "remove_from_profile",
+      "title": "Remove from writing profile",
+      "description": "Removes one writing sample, stated rule, or habit from the user's Writing Profile. The `action` is `remove_sample`, `remove_rule`, or `remove_habit`. `remove_sample` deletes one stored sample, so it no longer shapes the Writing Profile. `remove_rule` deletes one stored rule, so later writing no longer follows it. `remove_habit` stops writing from using a habit the user says is wrong. `manage_profile` with `restore_habit` brings a removed habit back. The ids come from `view_writing_profile`. A correction in the user's words goes to `manage_profile` with `add_rule` and `correctsHabitId`. The user can delete a whole Writing Profile on the Idiolect AI website.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "remove_sample",
+              "remove_rule",
+              "remove_habit"
+            ],
+            "description": "`remove_sample` deletes the sample `sampleId`. `remove_rule` deletes the rule `ruleId`. `remove_habit` stops writing from using the habit `habitId`."
+          },
+          "profile": {
+            "type": "string",
+            "minLength": 1,
+            "description": "For `remove_sample` and `remove_habit`: the Writing Profile's id or name. Omit it for the current Writing Profile."
+          },
+          "sampleId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "For `remove_sample`: the sample id from `view_writing_profile`."
+          },
+          "ruleId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "For `remove_rule`: the rule id from `view_writing_profile`."
+          },
+          "habitId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "For `remove_habit`: the habit id from `view_writing_profile`."
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "title": "Remove from writing profile"
       },
       "execution": {
         "taskSupport": "forbidden"

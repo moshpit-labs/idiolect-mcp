@@ -85,19 +85,20 @@ writing workflow in every client. Your client's model access and tool approvals 
 
 ## Writing tools
 
-Hosted OAuth and API-key account mode advertise these six tools:
+Hosted OAuth and API-key account mode advertise these seven tools:
 
 - `write` creates writing from your request, facts, or notes.
 - `rewrite` changes supplied prose. Your directions stay separate in `instructions`.
 - `refine_writing` changes writing Idiolect AI returned, using its latest writing reference.
 - `record_writing_feedback` records how you reacted to that writing: an outcome, your final wording, or a remark.
 - `view_writing_profile` reads your current Writing Profile, rules, or samples.
-- `manage_profile` creates or changes Writing Profiles and stated rules.
+- `manage_profile` creates or changes Writing Profiles and stated rules. It removes nothing.
+- `remove_from_profile` removes a writing sample, stated rule, or habit. Hosts ask before it runs.
 
 If you have no Writing Profile, your first request can return `needs_profile_info`: questions
 about how you write, each marked for the host or for you. Reply with `setup` (`choice` `profile`,
 the same `writingJobVersionId`, and `firstRun` with each question, its answer and the returned
-`round`). Idiolect AI then writes and starts your Writing Profile. `choice` `plain` writes now.
+`round`; add `dontAskAgain` true if you said not to be asked these questions again). Idiolect AI then writes and starts your Writing Profile. `choice` `plain` writes now.
 Where this is switched off, the service offers setup from your own writing or answers, and you
 can skip setup and keep writing without a profile. After three completed pieces, one
 optional reminder may appear after the writing. Ignoring it does not repeat it; declining it
