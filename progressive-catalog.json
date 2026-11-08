@@ -278,7 +278,7 @@
                   },
                   "dontAskAgain": {
                     "type": "boolean",
-                    "description": "True when the person said not to be asked these questions again. Idiolect AI then asks only the host."
+                    "description": "True only when the person said in this conversation, in their own words, that they do not want to be asked these questions again. Several rounds of questions, or a wish to spare the person, do not make it true. Once true, Idiolect AI asks only the host from then on."
                   }
                 },
                 "additionalProperties": false,
@@ -646,7 +646,7 @@
                   },
                   "dontAskAgain": {
                     "type": "boolean",
-                    "description": "True when the person said not to be asked these questions again. Idiolect AI then asks only the host."
+                    "description": "True only when the person said in this conversation, in their own words, that they do not want to be asked these questions again. Several rounds of questions, or a wish to spare the person, do not make it true. Once true, Idiolect AI asks only the host from then on."
                   }
                 },
                 "additionalProperties": false,
