@@ -278,7 +278,13 @@
                   },
                   "dontAskAgain": {
                     "type": "boolean",
-                    "description": "True only when the person said in this conversation, in their own words, that they do not want to be asked these questions again. Several rounds of questions, or a wish to spare the person, do not make it true. Once true, Idiolect AI asks only the host from then on."
+                    "description": "True only when the person said in this conversation, in their own words, that they do not want to be asked these questions again. Several rounds of questions, or a wish to spare the person, do not make it true. With `dontAskAgainWords`, Idiolect AI asks only the host from then on. Without it, only this round's questions go to the host alone."
+                  },
+                  "dontAskAgainWords": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000,
+                    "description": "With `dontAskAgain`: what the person said, word for word, when they asked not to be asked these questions again."
                   }
                 },
                 "additionalProperties": false,
@@ -646,7 +652,13 @@
                   },
                   "dontAskAgain": {
                     "type": "boolean",
-                    "description": "True only when the person said in this conversation, in their own words, that they do not want to be asked these questions again. Several rounds of questions, or a wish to spare the person, do not make it true. Once true, Idiolect AI asks only the host from then on."
+                    "description": "True only when the person said in this conversation, in their own words, that they do not want to be asked these questions again. Several rounds of questions, or a wish to spare the person, do not make it true. With `dontAskAgainWords`, Idiolect AI asks only the host from then on. Without it, only this round's questions go to the host alone."
+                  },
+                  "dontAskAgainWords": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000,
+                    "description": "With `dontAskAgain`: what the person said, word for word, when they asked not to be asked these questions again."
                   }
                 },
                 "additionalProperties": false,

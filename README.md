@@ -98,7 +98,7 @@ Hosted OAuth and API-key account mode advertise these seven tools:
 If you have no Writing Profile, your first request can return `needs_profile_info`: questions
 about how you write, each marked for the host or for you. Reply with `setup` (`choice` `profile`,
 the same `writingJobVersionId`, and `firstRun` with each question, its answer and the returned
-`round`; add `dontAskAgain` true only if you said yourself not to be asked these questions again). Idiolect AI then writes and starts your Writing Profile. `choice` `plain` writes now.
+`round`; add `dontAskAgain` true only if you said yourself not to be asked these questions again, with `dontAskAgainWords` holding what you said; without your words it holds for that round only). Idiolect AI then writes and starts your Writing Profile. `choice` `plain` writes now.
 Where this is switched off, the service offers setup from your own writing or answers, and you
 can skip setup and keep writing without a profile. After three completed pieces, one
 optional reminder may appear after the writing. Ignoring it does not repeat it; declining it
