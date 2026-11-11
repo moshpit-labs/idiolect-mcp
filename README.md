@@ -85,7 +85,7 @@ writing workflow in every client. Your client's model access and tool approvals 
 
 ## Writing tools
 
-Hosted OAuth and API-key account mode advertise these seven tools:
+Hosted OAuth and API-key account mode advertise these eight tools:
 
 - `write` creates writing from your request, facts, or notes.
 - `rewrite` changes supplied prose. Your directions stay separate in `instructions`.
@@ -94,6 +94,7 @@ Hosted OAuth and API-key account mode advertise these seven tools:
 - `view_writing_profile` reads your current Writing Profile, rules, or samples.
 - `manage_profile` creates or changes Writing Profiles and stated rules. It removes nothing.
 - `remove_from_profile` removes a writing sample, stated rule, or habit. Hosts ask before it runs.
+- `view_account` shows the signed-in account, its plan, the words left, and the current Writing Profile.
 
 If you have no Writing Profile, your first request can return `needs_profile_info`: questions
 about how you write, each marked for the host or for you. Reply with `setup` (`choice` `profile`,
