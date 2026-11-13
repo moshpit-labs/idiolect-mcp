@@ -1,0 +1,12 @@
+{
+  "name": "idiolect-ai",
+  "description": "Idiolect AI plugins: write in your own voice with Claude.",
+  "owner": { "name": "Idiolect AI", "url": "https://idiolect.app" },
+  "plugins": [
+    {
+      "name": "idiolect-ai",
+      "source": "./plugins/claude/idiolect-ai",
+      "description": "Write and rewrite any text you put your name on so that it sounds like you. Your Writing Profile learns from what you show Claude."
+    }
+  ]
+}

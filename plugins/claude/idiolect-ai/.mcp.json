@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "idiolect": {
+      "type": "http",
+      "url": "https://idiolect.app/api/mcp"
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "^mcp__.*(send|reply|forward|post|publish|comment|schedule|tweet|create_page|update_page|create_document|update_document|save_document)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/record-outcome.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}
