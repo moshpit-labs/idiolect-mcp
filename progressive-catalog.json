@@ -4,7 +4,7 @@
     {
       "name": "write",
       "title": "Write",
-      "description": "Drafts an email, message, post, reply, doc, or report in the user's style. Use for new writing for or on behalf of the user, using their current Writing Profile when available. It writes from their request, facts, notes, or an outline, without inventing missing facts. The tool produces the draft. There is no need to draft it first. For a person with no Writing Profile, the first result can ask questions about how they write before it writes. Put the user's directions in `instructions`. It returns finished writing for direct presentation. When presenting the writing, preserve its wording.",
+      "description": "Drafts an email, message, post, reply, doc, or report in the user's style. Use for new writing for or on behalf of the user, using their current Writing Profile when available. It writes from their request, facts, notes, or an outline, without inventing missing facts. Put the user's own words for the piece in `request`, as they said them. Do not rephrase or interpret them: the tool works best from the user's own words. The tool produces the draft. There is no need to draft it first. For a person with no Writing Profile, the first result can ask questions about how they write before it writes. Put the user's directions in `instructions`. It returns finished writing for direct presentation. When presenting the writing, preserve its wording.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -17,7 +17,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 18000,
-            "description": "What to write: the content, audience, purpose, and facts the user gave. Do not invent facts. Keep writing directions in `instructions`. Describe the intended author and point of view. Required unless `setup` resumes a held request."
+            "description": "What to write, in the user's own words: the content, audience, purpose and facts they gave. Keep their wording and quotes as they said them, without rephrasing or interpreting them. Add facts that the user gave earlier in the conversation when they help. Do not invent facts. Keep writing directions in `instructions`. Describe the intended author and point of view. Required unless `setup` resumes a held request."
           },
           "format": {
             "type": "string",
