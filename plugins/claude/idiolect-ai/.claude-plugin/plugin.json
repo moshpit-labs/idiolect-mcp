@@ -3,7 +3,11 @@
   "displayName": "Idiolect AI",
   "version": "0.1.0",
   "description": "Write in your own voice. Idiolect AI writes and rewrites any text you will put your name on, from emails and posts to essays, reports and stories, so that it sounds like you. Your Writing Profile learns from what you show Claude.",
-  "author": { "name": "Idiolect AI", "url": "https://idiolect.app" },
+  "author": {
+    "name": "Idiolect AI",
+    "url": "https://idiolect.app"
+  },
   "homepage": "https://idiolect.app",
+  "privacyPolicyUrl": "https://idiolect.app/privacy",
   "license": "MIT"
 }
