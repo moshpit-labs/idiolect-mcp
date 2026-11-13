@@ -9,5 +9,6 @@
   },
   "homepage": "https://idiolect.app",
   "privacyPolicyUrl": "https://idiolect.app/privacy",
+  "icon": "./.claude-plugin/icon.png",
   "license": "MIT"
 }
