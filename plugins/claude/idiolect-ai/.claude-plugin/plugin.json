@@ -16,15 +16,17 @@
   "icon": "./.claude-plugin/icon.png",
   "license": "MIT",
   "keywords": [
-    "writing",
-    "voice",
-    "writing style",
+    "write in my voice",
+    "sounds like me",
+    "less AI-sounding",
+    "personal writing style",
+    "ghostwriter",
     "rewrite",
-    "email",
+    "emails",
+    "LinkedIn posts",
     "essays",
-    "blog posts",
-    "social posts",
-    "personalization",
-    "writing profile"
+    "cover letters",
+    "newsletters",
+    "stories"
   ]
 }
