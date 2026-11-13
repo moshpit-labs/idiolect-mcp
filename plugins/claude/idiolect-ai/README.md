@@ -21,6 +21,9 @@ cover letters and bios, speeches, scripts and stories.
 3. Tell Claude how you like to write, correct a draft, or share something you wrote. Claude
    sends what it learns to your Writing Profile, so later writing sounds more like you.
 
+4. To build or improve your Writing Profile, run `/idiolect-ai:setup` in Cowork or Claude Code,
+   or ask Claude in chat to set up your Writing Profile.
+
 The plugin works in Claude chat, Cowork and Claude Code.
 
 ## Data
@@ -33,4 +36,9 @@ The plugin sends data only to Idiolect AI, through the connector at `https://idi
 
 Idiolect AI keeps your Writing Profile in your account. You can see it, change it and delete
 parts of it at any time. See the [privacy policy](https://idiolect.app/privacy). The plugin
-itself runs no code and stores nothing.
+itself stores nothing.
+
+In Cowork and Claude Code, the plugin has one hook. After Claude uses a tool that can send or
+publish text, such as a send, reply, post or comment tool, the hook runs a short shell script
+that tells Claude to record what happened to Idiolect AI writing. The script reads nothing and
+sends nothing.

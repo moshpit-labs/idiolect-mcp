@@ -19,6 +19,8 @@ coding task or a research task.
 | The user corrects the style of text that you wrote without Idiolect AI. | Ask if the user wants to keep the correction for later writing. If yes, call `add_rule`. |
 | The user changes text from Idiolect AI and then uses it. | Call `refine_writing` with `outcome` `edited`, the final text as `finalText` and `editAuthor` `user`. |
 | The user shares text that they wrote themselves, for example a pasted essay, an old post or their own draft. | Ask one time in the conversation: "Can I add your writing to your Writing Profile?" If yes, call `manage_profile` with `add_samples`. Use the same permission for the rest of the conversation. |
+| The user agrees with a habit that `view_writing_profile` shows. | Call `manage_profile` with `confirm_habit`. |
+| The user says that a habit in their Writing Profile is wrong. | Ask how they really write. Call `add_rule` with `correctsHabitId` and the user's words. |
 | You see a pattern in the user's writing or choices, but the user did not say it. | Do not save it as a rule. Ask the user one short question about it. If the user agrees, save their answer, in their words, with `add_rule`. |
 
 ## What not to send
