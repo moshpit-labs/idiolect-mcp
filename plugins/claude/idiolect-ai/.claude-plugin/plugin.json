@@ -8,7 +8,23 @@
     "url": "https://idiolect.app"
   },
   "homepage": "https://idiolect.app",
+  "repository": "https://github.com/moshpit-labs/idiolect-mcp",
+  "documentationUrl": "https://github.com/moshpit-labs/idiolect-mcp/tree/main/plugins/claude/idiolect-ai",
+  "supportUrl": "https://idiolect.app/support",
   "privacyPolicyUrl": "https://idiolect.app/privacy",
+  "termsOfServiceUrl": "https://idiolect.app/terms",
   "icon": "./.claude-plugin/icon.png",
-  "license": "MIT"
+  "license": "MIT",
+  "keywords": [
+    "writing",
+    "voice",
+    "writing style",
+    "rewrite",
+    "email",
+    "essays",
+    "blog posts",
+    "social posts",
+    "personalization",
+    "writing profile"
+  ]
 }
